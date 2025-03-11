@@ -1134,6 +1134,10 @@ namespace PurrNet
         {
             if (!_transport)
                 PurrLogger.Throw<InvalidOperationException>("Transport is not set (null).");
+
+            if (!_transport.isSupported)
+                PurrLogger.Throw<InvalidOperationException>($"Transport `{_transport.GetType().Name}` is not supported.");
+
             _transport.StartServer(this);
         }
 
@@ -1202,6 +1206,9 @@ namespace PurrNet
             localClientConnection = null;
             if (!_transport)
                 PurrLogger.Throw<InvalidOperationException>("Transport is not set (null).");
+
+            if (!_transport.isSupported)
+                PurrLogger.Throw<InvalidOperationException>($"Transport `{_transport.GetType().Name}` is not supported.");
 
             if (_clientCoroutine != null)
             {

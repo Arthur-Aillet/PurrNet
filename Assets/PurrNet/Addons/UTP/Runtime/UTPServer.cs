@@ -16,7 +16,7 @@ using Unity.Services.Relay.Models;
 namespace PurrNet.UTP {
 #if UTP_TRANSPORT
     /// <summary>
-    /// Job used to update connections. 
+    /// Job used to update connections.
     /// </summary>
     [BurstCompile]
     struct ServerUpdateConnectionsJob : IJob {
@@ -86,7 +86,7 @@ namespace PurrNet.UTP {
     }
 
     /// <summary>
-    /// Job to query incoming events for all connections. 
+    /// Job to query incoming events for all connections.
     /// </summary>
     [BurstCompile]
     struct ServerUpdateJob : IJobParallelForDefer {
@@ -193,23 +193,23 @@ namespace PurrNet.UTP {
 #endif
 
     /// <summary>
-    /// A listen server for PurrNet using UTP. 
+    /// A listen server for PurrNet using UTP.
     /// </summary>
     public class UTPServer : UTPEntity {
         /// <summary>
         /// Invokes when a client has connected to the server.
         /// </summary>
-        public Action<int> OnConnected;
+        private readonly Action<int> _onConnected;
 
         /// <summary>
         /// Invokes when data has been received by a third party.
         /// </summary>
-        public Action<int, ArraySegment<byte>> OnReceivedData;
+        private readonly Action<int, ArraySegment<byte>> _onReceivedData;
 
         /// <summary>
         /// Invokes when a client has disconnected.
         /// </summary>
-        public Action<int> OnDisconnected;
+        private readonly Action<int> _onDisconnected;
 
 #if UTP_TRANSPORT
         /// <summary>
@@ -225,7 +225,7 @@ namespace PurrNet.UTP {
         /// <summary>
         /// The driver's max header size for UTP transport.
         /// </summary>
-        private int[] driverMaxHeaderSize = new int[NUM_PIPELINES];
+        private readonly int[] driverMaxHeaderSize = new int[NUM_PIPELINES];
 #endif
 
         /// <summary>
@@ -235,9 +235,9 @@ namespace PurrNet.UTP {
         /// <param name="OnReceivedData">Action that is invoked when receiving data.</param>
         /// <param name="OnDisconnected">Action that is invoked when disconnected.</param>
         public UTPServer(Action<int> OnConnected, Action<int, ArraySegment<byte>> OnReceivedData, Action<int> OnDisconnected) {
-            this.OnConnected = OnConnected;
-            this.OnReceivedData = OnReceivedData;
-            this.OnDisconnected = OnDisconnected;
+            this._onConnected = OnConnected;
+            this._onReceivedData = OnReceivedData;
+            this._onDisconnected = OnDisconnected;
         }
 
         /// <summary>
@@ -265,7 +265,7 @@ namespace PurrNet.UTP {
             NetworkEndpoint endpoint = NetworkEndpoint.AnyIpv4;
             endpoint.Port = port;
 
-            if(useP2P) {
+            if(!useP2P) {
                 //Initialize network settings
                 NetworkSettings networkSettings = new NetworkSettings();
 
@@ -307,7 +307,7 @@ namespace PurrNet.UTP {
                 return false;
             }
 
-            if(useP2P) {
+            if(!useP2P) {
                 UTPLog.Info($"P2P Server Started on Port: {endpoint.Port}");
                 return true;
             } else {
@@ -381,7 +381,7 @@ namespace PurrNet.UTP {
             ProcessIncomingEvents();
 
             //Cache driver & connection info
-            cacheConnectionInfo();
+            CacheConnectionInfo();
 
             // Create a new jobs
             var serverUpdateJob = new ServerUpdateJob {
@@ -389,7 +389,7 @@ namespace PurrNet.UTP {
                 connections = connections.AsDeferredJobArray(),
                 connectionsEventsQueue = connectionsEventsQueue.AsParallelWriter()
             };
-            
+
             var connectionJob = new ServerUpdateConnectionsJob {
                 driver = driver,
                 connections = connections,
@@ -454,7 +454,7 @@ namespace PurrNet.UTP {
                 driver.ScheduleUpdate().Complete();
 
                 //Invoke disconnect action
-                OnDisconnected?.Invoke(connectionId);
+                _onDisconnected?.Invoke(connectionId);
             } else {
                 UTPLog.Warning($"Connection not found: {connectionId}");
             }
@@ -548,21 +548,21 @@ namespace PurrNet.UTP {
             UTPConnectionEvent connectionEvent;
             while(connectionsEventsQueue.TryDequeue(out connectionEvent)) {
                 switch(connectionEvent.eventType) {
-                    //Connect action 
+                    //Connect action
                     case ((byte)UTPConnectionEventType.OnConnected): {
-                            OnConnected?.Invoke(connectionEvent.connectionId);
+                            _onConnected?.Invoke(connectionEvent.connectionId);
                             break;
                         }
 
                     //Receive data action
                     case ((byte)UTPConnectionEventType.OnReceivedData): {
-                            OnReceivedData?.Invoke(connectionEvent.connectionId, new ArraySegment<byte>(connectionEvent.eventData.ToArray()));
+                            _onReceivedData?.Invoke(connectionEvent.connectionId, new ArraySegment<byte>(connectionEvent.eventData.ToArray()));
                             break;
                         }
 
                     //Disconnect action
                     case ((byte)UTPConnectionEventType.OnDisconnected): {
-                            OnDisconnected?.Invoke(connectionEvent.connectionId);
+                            _onDisconnected?.Invoke(connectionEvent.connectionId);
                             break;
                         }
 
@@ -607,7 +607,7 @@ namespace PurrNet.UTP {
 
 
 
-        private void cacheConnectionInfo() {
+        private void CacheConnectionInfo() {
             bool isInitialized = IsNetworkDriverInitialized();
 
             //If driver is active, cache its max header size for UTP transport

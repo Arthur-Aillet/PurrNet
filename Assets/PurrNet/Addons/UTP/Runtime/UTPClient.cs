@@ -162,17 +162,17 @@ namespace PurrNet.UTP {
         /// <summary>
         /// Invokes when connected to a server.
         /// </summary>
-        public Action<int> OnConnected;
+        public event Action<int> onConnected;
 
         /// <summary>
         /// Invokes when data has been received.
         /// </summary>
-        public Action<int, ArraySegment<byte>> OnReceivedData;
+        public event Action<int, ArraySegment<byte>> onReceivedData;
 
         /// <summary>
         /// Invokes when disconnected from a server.
         /// </summary>
-        public Action<int> OnDisconnected;
+        public event Action<int> onDisconnected;
 
 #if UTP_TRANSPORT
         /// <summary>
@@ -194,19 +194,7 @@ namespace PurrNet.UTP {
         /// <summary>
         /// Whether the client is connected to the server or not.
         /// </summary>
-        public bool IsConnected { get; private set; }
-
-        /// <summary>
-        /// Constructor for UTP client.
-        /// </summary>
-        /// <param name="OnConnected">Action that is invoked when connected.</param>
-        /// <param name="OnReceivedData">Action that is invoked when receiving data.</param>
-        /// <param name="OnDisconnected">Action that is invoked when disconnected.</param>
-        public UTPClient(Action<int> OnConnected, Action<int, ArraySegment<byte>> OnReceivedData, Action<int> OnDisconnected) {
-            this.OnConnected = OnConnected;
-            this.OnReceivedData = OnReceivedData;
-            this.OnDisconnected = OnDisconnected;
-        }
+        public bool isConnected { get; private set; }
 
         /// <summary>
         /// Attempt to connect to a listen server at a given IP/port. Currently only supports IPV4.
@@ -215,7 +203,7 @@ namespace PurrNet.UTP {
         /// <param name="port">The port which the listen server is listening on.</param>
         public bool Connect(string address, ushort port, int timeoutMs = 1000) {
 #if UTP_TRANSPORT
-            if(IsConnected) {
+            if(isConnected) {
                 UTPLog.Warning($"Abandoning connection attempt, this client is already connected to a server.");
                 return false;
             }
@@ -359,7 +347,7 @@ namespace PurrNet.UTP {
                 driver.ScheduleUpdate().Complete();
 
                 //Invoke disconnect action
-                OnDisconnected?.Invoke(0); //todo: Can't get connectionId here? So just set to 0, might be wrong but maybe wont matter
+                onDisconnected?.Invoke(0); //todo: Can't get connectionId here? So just set to 0, might be wrong but maybe wont matter
             }
 
             //Flush the event queue
@@ -377,7 +365,7 @@ namespace PurrNet.UTP {
         }
 
         /// <summary>
-        /// Tick the client, creating the client job and scheduling it. Processes incoming events 
+        /// Tick the client, creating the client job and scheduling it. Processes incoming events
         /// </summary>
         public void Tick() {
 #if UTP_TRANSPORT
@@ -452,21 +440,21 @@ namespace PurrNet.UTP {
             //Process event queue
             while(connectionsEventsQueue.IsCreated && connectionsEventsQueue.TryDequeue(out UTPConnectionEvent connectionEvent)) {
                 switch(connectionEvent.eventType) {
-                    //Connect action 
+                    //Connect action
                     case ((byte)UTPConnectionEventType.OnConnected): {
-                            OnConnected?.Invoke(connectionEvent.connectionId);
+                            onConnected?.Invoke(connectionEvent.connectionId);
                             break;
                         }
 
                     //Receive data action
                     case ((byte)UTPConnectionEventType.OnReceivedData): {
-                            OnReceivedData?.Invoke(connectionEvent.connectionId, new ArraySegment<byte>(connectionEvent.eventData.ToArray()));
+                            onReceivedData?.Invoke(connectionEvent.connectionId, new ArraySegment<byte>(connectionEvent.eventData.ToArray()));
                             break;
                         }
 
                     //Disconnect action
                     case ((byte)UTPConnectionEventType.OnDisconnected): {
-                            OnDisconnected?.Invoke(connectionEvent.connectionId);
+                            onDisconnected?.Invoke(connectionEvent.connectionId);
                             break;
                         }
 
@@ -486,7 +474,7 @@ namespace PurrNet.UTP {
         /// <param name="channel">The channel to check.</param>
         /// <returns>This client's max header size.</returns>
         public int GetMaxHeaderSize(Channel channel = Channel.ReliableOrdered) {
-            if(IsConnected && IsNetworkDriverInitialized()) {
+            if(isConnected && IsNetworkDriverInitialized()) {
                 return driverMaxHeaderSize[ChannelToDriverIndex(channel)];
             }
 
@@ -508,12 +496,12 @@ namespace PurrNet.UTP {
                 }
 
                 //Set connection state
-                IsConnected = isInitialized && connection.GetState(driver) == Unity.Networking.Transport.NetworkConnection.State.Connected;
+                isConnected = isInitialized && connection.GetState(driver) == Unity.Networking.Transport.NetworkConnection.State.Connected;
             } else {
                 //If there is no valid connection, set values accordingly
                 driverMaxHeaderSize[ChannelToDriverIndex(Channel.ReliableOrdered)] = 0;
                 driverMaxHeaderSize[ChannelToDriverIndex(Channel.UnreliableSequenced)] = 0;
-                IsConnected = false;
+                isConnected = false;
             }
         }
 

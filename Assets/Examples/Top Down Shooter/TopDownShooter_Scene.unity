@@ -1683,7 +1683,7 @@ GameObject:
   - component: {fileID: 1216416903}
   - component: {fileID: 1216416904}
   - component: {fileID: 1216416905}
-  - component: {fileID: 1216416906}
+  - component: {fileID: 1216416907}
   m_Layer: 0
   m_Name: Network
   m_TagString: Untagged
@@ -1708,7 +1708,7 @@ MonoBehaviour:
   _startClientFlags: 7
   _cookieScope: 1
   _dontDestroyOnLoad: 0
-  _transport: {fileID: 1216416902}
+  _transport: {fileID: 1216416907}
   _networkPrefabs: {fileID: 11400000, guid: 37af97d33ef8d9747b965053a79d21f4, type: 2}
   _networkRules: {fileID: 11400000, guid: 5879a6fa5625f844e9c773a4ca0099dc, type: 2}
   _visibilityRules: {fileID: 11400000, guid: 8f014a5bd8dc68646a2a3c0b18c5bbd8, type: 2}
@@ -1819,7 +1819,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _timeout: 5
   _password: PurrNet!
---- !u!114 &1216416906
+--- !u!114 &1216416907
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -1828,14 +1828,15 @@ MonoBehaviour:
   m_GameObject: {fileID: 1216416895}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: ef882a0e84c58df4885b0e1e59320b49, type: 3}
+  m_Script: {fileID: 11500000, guid: 3beafd40ed9ff4c4b9d5f8c3f6f874da, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  checkInterval: 0.33
-  placement: 1
-  displayType: 2
-  fontSize: 13
-  textColor: {r: 1, g: 1, b: 1, a: 1}
+  _peerToPeer: 0
+  _relayJoinCode: 
+  _address: 127.0.0.1
+  _port: 7777
+  _timeout: 1000
+  _loggerLevel: 1
 --- !u!1001 &1312733901
 PrefabInstance:
   m_ObjectHideFlags: 0
