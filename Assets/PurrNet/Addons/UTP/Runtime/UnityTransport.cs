@@ -234,10 +234,7 @@ namespace PurrNet.UTP
             _client?.Tick();
         }
 
-        public void SendMessages(float delta)
-        {
-            // throw new System.NotImplementedException();
-        }
+        public void SendMessages(float delta) { }
 
         public void SendToClient(Connection target, ByteData data, Channel method = Channel.ReliableOrdered)
         {
