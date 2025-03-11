@@ -241,10 +241,16 @@ namespace PurrNet.Steam
             _server.Kick(conn.connectionId);
         }
 
-        public void TickUpdate(float delta)
+        public void ReceiveMessages(float delta)
         {
-            _server?.RunCallbacks();
-            _client?.RunCallbacks();
+            _server?.ReceiveMessages();
+            _client?.ReceiveMessages();
+        }
+
+        public void SendMessages(float delta)
+        {
+            _server?.SendMessages();
+            _client?.SendMessages();
         }
     }
 }

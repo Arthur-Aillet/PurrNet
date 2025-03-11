@@ -127,7 +127,9 @@ namespace PurrNet.Transports
 
         void CloseConnection(Connection conn);
 
-        void TickUpdate(float delta);
+        void ReceiveMessages(float delta);
+
+        void SendMessages(float delta);
 
         void UnityUpdate(float delta)
         {

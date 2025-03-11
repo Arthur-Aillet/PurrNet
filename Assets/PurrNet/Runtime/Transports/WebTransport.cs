@@ -28,12 +28,13 @@ namespace PurrNet.Transports
         [Tooltip("The amount of time in seconds before socket is disconnected due to no data being received.")]
         [SerializeField] private float _timeoutInSeconds = 5f;*/
 
-        [Header("SSL Settings")] [SerializeField]
-        private bool _enableSSL;
-
+        [Header("Shared Settings")]
         [Tooltip("When enabled, the transport will poll events in the Update method instead of per Tick.")]
         [SerializeField]
         private bool _pollEventsInUpdate;
+
+        [Header("SSL Settings")] [SerializeField]
+        private bool _enableSSL;
 
         [SerializeField] private string _certPath;
         [SerializeField] private string _certPassword;
@@ -196,7 +197,9 @@ namespace PurrNet.Transports
             onConnected?.Invoke(new Connection(0), false);
         }
 
-        public void TickUpdate(float delta)
+        public void SendMessages(float delta) { }
+
+        public void ReceiveMessages(float delta)
         {
             if (!_pollEventsInUpdate)
             {

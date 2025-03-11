@@ -114,24 +114,18 @@ namespace PurrNet.Steam
 #endif
         }
 
-        public void RunCallbacks()
+        public void SendMessages()
         {
 #if STEAMWORKS_NET_PACKAGE && !DISABLESTEAMWORKS
-            SendQueuesMessages();
-            ReceiveMessages();
-#endif
-        }
-
-#if STEAMWORKS_NET_PACKAGE && !DISABLESTEAMWORKS
-        private void SendQueuesMessages()
-        {
             if (_isDedicated)
                 SteamGameServerNetworkingSockets.FlushMessagesOnConnection(_connection);
             else SteamNetworkingSockets.FlushMessagesOnConnection(_connection);
+#endif
         }
 
-        private void ReceiveMessages()
+        public void ReceiveMessages()
         {
+#if STEAMWORKS_NET_PACKAGE && !DISABLESTEAMWORKS
             int receivedCount = _isDedicated ?
                 SteamGameServerNetworkingSockets.ReceiveMessagesOnConnection(_connection, _messages, MAX_MESSAGES) :
                 SteamNetworkingSockets.ReceiveMessagesOnConnection(_connection, _messages, MAX_MESSAGES);
@@ -150,7 +144,9 @@ namespace PurrNet.Steam
                 SteamNetworkingMessage_t.Release(ptr);
                 onDataReceived?.Invoke(byteData);
             }
+#endif
         }
+#if STEAMWORKS_NET_PACKAGE && !DISABLESTEAMWORKS
 
         private static void MakeSureBufferCanFit(int packetLength)
         {

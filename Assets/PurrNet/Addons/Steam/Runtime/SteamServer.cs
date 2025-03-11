@@ -121,17 +121,9 @@ namespace PurrNet.Steam
         }
 #endif
 
-        public void RunCallbacks()
+        public void SendMessages()
         {
 #if STEAMWORKS_NET_PACKAGE && !DISABLESTEAMWORKS
-            SendQueuesMessages();
-            ReceiveMessages();
-#endif
-        }
-
-#if STEAMWORKS_NET_PACKAGE && !DISABLESTEAMWORKS
-        private void SendQueuesMessages()
-        {
             for (var i = 0; i < _connections.Count; i++)
             {
                 var conn = _connections[i];
@@ -140,10 +132,12 @@ namespace PurrNet.Steam
                      SteamGameServerNetworkingSockets.FlushMessagesOnConnection(conn);
                 else SteamNetworkingSockets.FlushMessagesOnConnection(conn);
             }
+#endif
         }
 
-        private void ReceiveMessages()
+        public void ReceiveMessages()
         {
+#if STEAMWORKS_NET_PACKAGE && !DISABLESTEAMWORKS
             for (var i = 0; i < _connections.Count; i++)
             {
                 var conn = _connections[i];
@@ -170,8 +164,8 @@ namespace PurrNet.Steam
                     onDataReceived?.Invoke(connId, byteData);
                 }
             }
-        }
 #endif
+        }
 
         public void Kick(int id)
         {

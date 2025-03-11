@@ -1746,6 +1746,7 @@ MonoBehaviour:
   _roomName: PurrNet
   _region: eu-central
   _host: eu1.purrlay.riten.dev
+  _pollEventsInUpdate: 0
 --- !u!114 &1216416902
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1780,6 +1781,7 @@ MonoBehaviour:
   _address: 127.0.0.1
   _query: 
   _path: 
+  _pollEventsInUpdate: 0
   _enableSSL: 0
   _certPath: 
   _certPassword: 

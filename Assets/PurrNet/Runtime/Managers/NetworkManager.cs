@@ -1004,7 +1004,7 @@ namespace PurrNet
                 _clientModules.TriggerOnPreFixedUpdate();
 
             if (_transport)
-                _transport.transport.TickUpdate(tickModule.tickDelta);
+                _transport.transport.ReceiveMessages(tickModule.tickDelta);
 
             if (serverConnected)
                 _serverModules.TriggerOnFixedUpdate();
@@ -1017,6 +1017,9 @@ namespace PurrNet
 
             if (clientConnected)
                 _clientModules.TriggerOnPostFixedUpdate();
+
+            if (_transport)
+                _transport.transport.SendMessages(tickModule.tickDelta);
 
             if (_isCleaningClient && _clientModules.Cleanup())
             {

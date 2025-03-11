@@ -39,6 +39,7 @@ namespace PurrNet.Transports
         [SerializeField, HideInInspector] private string _roomName;
         [SerializeField, HideInInspector] private string _region = "eu-central";
         [SerializeField, HideInInspector] private string _host;
+        [SerializeField, HideInInspector] private bool _pollEventsInUpdate;
 
         public string region
         {
@@ -482,11 +483,25 @@ namespace PurrNet.Transports
             throw new NotImplementedException();
         }
 
-        public void TickUpdate(float delta)
+        public void ReceiveMessages(float delta)
         {
-            _server?.ProcessMessageQueue();
-            _client?.ProcessMessageQueue();
+            if (!_pollEventsInUpdate)
+            {
+                _server.ProcessMessageQueue();
+                _client.ProcessMessageQueue();
+            }
         }
+
+        public void UnityUpdate(float delta)
+        {
+            if (_pollEventsInUpdate)
+            {
+                _server.ProcessMessageQueue();
+                _client.ProcessMessageQueue();
+            }
+        }
+
+        public void SendMessages(float delta) { }
 
         private void OnDisable()
         {

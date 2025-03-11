@@ -12,6 +12,7 @@ namespace PurrNet.Editor
         private SerializedProperty _roomName;
         private SerializedProperty _region;
         private SerializedProperty _host;
+        private SerializedProperty _pollEventsInUpdate;
 
         private bool _lookingForBestRegion;
         static string[] _regions = Array.Empty<string>();
@@ -23,6 +24,7 @@ namespace PurrNet.Editor
             _roomName = serializedObject.FindProperty("_roomName");
             _region = serializedObject.FindProperty("_region");
             _host = serializedObject.FindProperty("_host");
+            _pollEventsInUpdate = serializedObject.FindProperty("_pollEventsInUpdate");
 
             if (_regions.Length == 0)
                 LoadRegions();
@@ -161,6 +163,8 @@ namespace PurrNet.Editor
             GUILayout.Label(_host.stringValue);
             GUI.color = Color.white;
             EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.PropertyField(_pollEventsInUpdate);
 
             TransportInspector.DrawTransportStatus(transport);
 

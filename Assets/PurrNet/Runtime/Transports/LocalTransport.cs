@@ -157,7 +157,7 @@ namespace PurrNet.Transports
             StopClientInternal();
         }
 
-        public void TickUpdate(float delta)
+        public void ReceiveMessages(float delta)
         {
             while (_serverQueue.Count > 0)
             {
@@ -171,6 +171,8 @@ namespace PurrNet.Transports
                 onDataReceived?.Invoke(default, data.ToByteData(), false);
             }
         }
+
+        public void SendMessages(float delta) { }
 
         ConnectionState _prevClientState = ConnectionState.Disconnected;
         ConnectionState _prevServerState = ConnectionState.Disconnected;

@@ -194,23 +194,27 @@ namespace PurrNet.Transports
 
         /// In this mode you should use ManualReceive (without PollEvents) for receive packets
         /// and ManualUpdate(...) for update and send packets
-        public void TickUpdate(float delta)
+        public void ReceiveMessages(float delta)
+        {
+            if (!_pollEventsInUpdate)
+            {
+                if (_server.IsRunning)
+                    _server.PollEvents();
+
+                if (_client.IsRunning)
+                    _client.PollEvents();
+            }
+        }
+
+        public void SendMessages(float delta)
         {
             var dInMs = Mathf.FloorToInt(delta * 1000);
 
             if (_server.IsRunning)
-            {
                 _server.ManualUpdate(dInMs);
-                if (!_pollEventsInUpdate)
-                    _server.PollEvents();
-            }
 
             if (_client.IsRunning)
-            {
                 _client.ManualUpdate(dInMs);
-                if (!_pollEventsInUpdate)
-                    _client.PollEvents();
-            }
         }
 
         public void UnityUpdate(float delta)
