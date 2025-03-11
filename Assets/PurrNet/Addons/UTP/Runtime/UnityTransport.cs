@@ -459,14 +459,14 @@ namespace PurrNet.UTP
                 return false;
             }
 
-            RelayJoinCode = await RelayService.Instance.GetJoinCodeAsync(_relayServerAllocation.AllocationId);
-            if(string.IsNullOrWhiteSpace(RelayJoinCode)) {
+            _relayJoinCode = await RelayService.Instance.GetJoinCodeAsync(_relayServerAllocation.AllocationId);
+            if(string.IsNullOrWhiteSpace(_relayJoinCode)) {
                 _relayServerAllocation = null;
                 UTPLog.Error($"Unable to allocate Relay Server, encountered an error retrieving the Join Code.");
                 return false;
             }
 
-            UTPLog.Info($"Relay Server Allocated | Region: {_relayServerAllocation.Region} | Join Code: {RelayJoinCode}");
+            UTPLog.Info($"Relay Server Allocated | Region: {_relayServerAllocation.Region} | Join Code: {_relayJoinCode}");
 
             return true;
 #else

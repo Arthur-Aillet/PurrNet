@@ -258,7 +258,7 @@ namespace PurrNet.UTP {
         public bool RelayConnect(object joinAllocation) {
 #endif
 #if UTP_RELAY
-            if(IsConnected) {
+            if(isConnected) {
                 UTPLog.Warning($"Abandoning connection attempt, this client is already connected to a server.");
                 return false;
             }

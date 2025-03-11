@@ -1831,7 +1831,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3beafd40ed9ff4c4b9d5f8c3f6f874da, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _peerToPeer: 0
+  _peerToPeer: 1
   _relayJoinCode: 
   _address: 127.0.0.1
   _port: 7777
