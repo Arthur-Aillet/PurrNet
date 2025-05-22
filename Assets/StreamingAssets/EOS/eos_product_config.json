@@ -1,0 +1,38 @@
+{
+  "ProductName": "PurrNet",
+  "ProductId": "da9e4dca850848f18b98da4c7e069335",
+  "ProductVersion": "1",
+  "imported": true,
+  "Clients": [
+    {
+      "Value": {
+        "ClientId": "xyza7891xSSsUnz4SXBYvwQ7Tjja8eVc",
+        "ClientSecret": "WK5Dqdbo02KfUri/W+hFeIBXFFTpAtQQ2QY/+IzhQgA",
+        "EncryptionKey": "87F10EFA413562A7F54ED2DDF6B114292F48F833248DA47AFB6033F3D346C6C8"
+      },
+      "Name": "Client"
+    }
+  ],
+  "Environments": {
+    "Deployments": [
+      {
+        "Value": {
+          "SandboxId": {
+            "Value": "fb05dcc5221d45b296077d729acf659c"
+          },
+          "DeploymentId": "e631307e9cd1479eaa3ba4115a159ee1"
+        },
+        "Name": "Deployment"
+      }
+    ],
+    "Sandboxes": [
+      {
+        "Value": {
+          "Value": "fb05dcc5221d45b296077d729acf659c"
+        },
+        "Name": "Sandbox"
+      }
+    ]
+  },
+  "schemaVersion": "1.0"
+}

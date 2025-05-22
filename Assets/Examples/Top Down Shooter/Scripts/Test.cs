@@ -5,6 +5,7 @@ using UnityEngine;
 public class Test : NetworkIdentity
 {
     [SerializeField] private int _localHealth = 100;
+    [SerializeField] private SyncArray<int> _testArray = new();
 
     private void Update()
     {

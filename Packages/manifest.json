@@ -2,6 +2,7 @@
   "dependencies": {
     "com.codewriter.triinspector": "https://github.com/codewriter-packages/Tri-Inspector.git",
     "com.github.kurotu.unity-terminal-launcher": "https://github.com/kurotu/UnityTerminalLauncher.git",
+    "com.playeveryware.eos": "https://github.com/EOS-Contrib/eos_plugin_for_unity_upm.git",
     "com.rlabrecque.steamworks.net": "https://github.com/rlabrecque/Steamworks.NET.git?path=/com.rlabrecque.steamworks.net#2024.8.0",
     "com.unity.ai.navigation": "2.0.6",
     "com.unity.code-analysis": "0.1.2-preview",
