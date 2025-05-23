@@ -72,6 +72,7 @@ namespace PurrNet.EOS
 
             EOSWrapper.Platform.GetP2PInterface().AcceptConnection(ref acceptOptions);
             _clientState = ConnectionState.Connected;
+            onConnectionState?.Invoke(_clientState, false);
             onConnected?.Invoke(new Connection(peer.GetHashCode()), false);
         }
 

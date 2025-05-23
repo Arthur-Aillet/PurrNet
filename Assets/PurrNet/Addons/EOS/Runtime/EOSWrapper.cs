@@ -57,6 +57,7 @@ namespace PurrNet.EOS
         
         private static void OnDeviceIdCreated(ref CreateDeviceIdCallbackInfo info)
         {
+            Debug.Log($"On Device ID created status: {info.ResultCode}");
             if (info.ResultCode == Result.Success || info.ResultCode == Result.DuplicateNotAllowed)
             {
                 var credentials = new Credentials
@@ -84,6 +85,7 @@ namespace PurrNet.EOS
 
         private static void OnLoginComplete(ref LoginCallbackInfo data)
         {
+            Debug.Log($"Login complete status: {data.ResultCode} | LocalUser: {data.LocalUserId}");
             if (data.ResultCode == Result.Success)
             {
                 LocalUserId = data.LocalUserId;
