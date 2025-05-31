@@ -7,6 +7,8 @@ using UnityEngine;
 public class Test : NetworkIdentity
 {
     [SerializeField] private int _localHealth = 100;
+    [SerializeField] private SyncList<int> _testList = new(ownerAuth:true);
+    
     [SerializeField] private SyncDictionary<int, int> _dictionary = new ();
 
     private void Awake()
@@ -82,6 +84,9 @@ public class Test : NetworkIdentity
 
     private void TestList()
     {
+        _testList.Add(_testList.Count);
+
+        return;
         if(!_dictionary.TryAdd(0, 0))
             _dictionary[0] += 1;
         if(!_dictionary.TryAdd(1, 0))

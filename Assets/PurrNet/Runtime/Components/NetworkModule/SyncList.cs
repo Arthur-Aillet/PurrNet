@@ -3,8 +3,6 @@ using PurrNet.Logging;
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using PurrNet.Transports;
-using UnityEngine.Scripting;
 
 namespace PurrNet
 {
@@ -42,14 +40,12 @@ namespace PurrNet
             return valueStr;
         }
     }
-
+    
     [Serializable]
-    public class SyncList<T> : NetworkModule, IList<T>, ITick
+    public class SyncList<T> : ASyncType<List<T>, SyncListChange<T>>, IList<T>
     {
-        [SerializeField] private bool _ownerAuth;
-        [SerializeField, Min(0)] private float _sendIntervalInSeconds;
         [SerializeField] private List<T> _list = new List<T>();
-        
+
         public List<T> list => _list;
         public List<T> ToList() => _list;
 
@@ -61,27 +57,11 @@ namespace PurrNet
         public event SyncListChanged<T> onChanged;
 
         /// <summary>
-        /// Whether it is the owner or the server that has the authority to modify the list
-        /// </summary>
-        public bool ownerAuth => _ownerAuth;
-        
-        public float sendIntervalInSeconds
-        {
-            get => _sendIntervalInSeconds;
-            set => _sendIntervalInSeconds = value;
-        }
-
-        /// <summary>
         /// The amount of entries in the list
         /// </summary>
         public int Count => _list.Count;
 
         public bool IsReadOnly => false;
-        
-        private List<SyncListChange<T>> _pendingChanges = new();
-        private float _lastSendTime;
-        private bool _wasLastDirty;
-        private bool _isDirty;
 
         public SyncList(bool ownerAuth = false)
         {
@@ -94,6 +74,51 @@ namespace PurrNet
             _ownerAuth = ownerAuth;
         }
 
+        protected override List<T> GetFullState() => new List<T>(_list);
+
+        protected override void ApplyFullState(List<T> state)
+        {
+            _list.Clear();
+            _list.AddRange(state);
+
+            InvokeChangeEvent(new SyncListChange<T>(SyncListOperation.Cleared));
+
+            for (int i = 0; i < state.Count; i++)
+            {
+                InvokeChangeEvent(new SyncListChange<T>(SyncListOperation.Added, state[i], i));
+            }
+        }
+
+        protected override void ApplyChange(SyncListChange<T> change)
+        {
+            switch (change.operation)
+            {
+                case SyncListOperation.Added:
+                    _list.Add(change.value);
+                    break;
+                case SyncListOperation.Removed:
+                    int idx = _list.IndexOf(change.value);
+                    if (idx >= 0) _list.RemoveAt(idx);
+                    break;
+                case SyncListOperation.Insert:
+                    if (change.index <= _list.Count)
+                        _list.Insert(change.index, change.value);
+                    break;
+                case SyncListOperation.Set:
+                    if (change.index < _list.Count)
+                        _list[change.index] = change.value;
+                    break;
+                case SyncListOperation.Cleared:
+                    _list.Clear();
+                    break;
+            }
+        }
+
+        protected override void InvokeChangeEvent(SyncListChange<T> change)
+        {
+            onChanged?.Invoke(change);
+        }
+
         public T this[int idx]
         {
             get => _list[idx];
@@ -102,7 +127,6 @@ namespace PurrNet
                 ValidateAuthority();
 
                 var oldValue = _list[idx];
-
                 if (oldValue.Equals(value))
                     return;
 
@@ -110,93 +134,7 @@ namespace PurrNet
 
                 var change = new SyncListChange<T>(SyncListOperation.Set, value, idx);
                 QueueChange(change);
-                InvokeChange(change);
-
-                if (isSpawned)
-                {
-                    if (isServer)
-                        SendSetToAll(idx, value);
-                    else
-                        SendSetToServer(idx, value);
-                }
-            }
-        }
-        
-        private void QueueChange(SyncListChange<T> change)
-        {
-            _pendingChanges.Add(change);
-            _isDirty = true;
-        }
-
-        public override void OnSpawn()
-        {
-            if (!IsController(_ownerAuth)) return;
-
-            if (isServer)
-                SendInitialStateToAll(_list);
-            else SendInitialStateToServer(_list);
-        }
-
-        public override void OnObserverAdded(PlayerID player)
-        {
-            SendInitialToTarget(player, _list);
-        }
-
-        [TargetRpc(Channel.ReliableOrdered), Preserve]
-        private void SendInitialToTarget(PlayerID player, List<T> items)
-        {
-            HandleInitialState(items);
-        }
-
-        [ObserversRpc(Channel.ReliableOrdered)]
-        private void SendInitialStateToAll(List<T> items)
-        {
-            HandleInitialState(items);
-        }
-
-        private void HandleInitialState(List<T> items)
-        {
-            if (!isHost)
-            {
-                if (items == null)
-                    return;
-                _list.Clear();
-                _list.AddRange(items);
-
-                var change = new SyncListChange<T>(SyncListOperation.Cleared);
-                InvokeChange(change);
-
-                for (int i = 0; i < items.Count; i++)
-                {
-                    var changeI = new SyncListChange<T>(SyncListOperation.Added, items[i], i);
-                    InvokeChange(changeI);
-                }
-            }
-        }
-
-        [ServerRpc(Channel.ReliableOrdered, requireOwnership: true)]
-        private void SendInitialStateToServer(List<T> items)
-        {
-            if (!_ownerAuth) return;
-            SendInitialStateToOthers(items);
-        }
-
-        [ObserversRpc(Channel.ReliableOrdered, excludeOwner: true)]
-        private void SendInitialStateToOthers(List<T> items)
-        {
-            if (!isServer || isHost)
-            {
-                _list.Clear();
-                _list.AddRange(items);
-
-                var change = new SyncListChange<T>(SyncListOperation.Cleared);
-                InvokeChange(change);
-
-                for (int i = 0; i < items.Count; i++)
-                {
-                    var changeI = new SyncListChange<T>(SyncListOperation.Added, items[i], i);
-                    InvokeChange(changeI);
-                }
+                InvokeChangeEvent(change);
             }
         }
 
@@ -211,7 +149,7 @@ namespace PurrNet
             _list.Add(item);
             var change = new SyncListChange<T>(SyncListOperation.Added, item, _list.Count - 1);
             QueueChange(change);
-            InvokeChange(change);
+            InvokeChangeEvent(change);
         }
 
         /// <summary>
@@ -224,7 +162,7 @@ namespace PurrNet
             _list.Clear();
             var change = new SyncListChange<T>(SyncListOperation.Cleared);
             QueueChange(change);
-            InvokeChange(change);
+            InvokeChangeEvent(change);
         }
 
         /// <summary>
@@ -239,14 +177,14 @@ namespace PurrNet
             _list.Insert(index, item);
             var change = new SyncListChange<T>(SyncListOperation.Insert, item, index);
             QueueChange(change);
-            InvokeChange(change);
+            InvokeChangeEvent(change);
         }
 
         /// <summary>
         /// Removes an item from the list and syncs the change
         /// </summary>
         /// <param name="item">Item to be removed</param>
-        /// <returns></returns>
+        /// <returns>True if the item was removed, false otherwise</returns>
         public bool Remove(T item)
         {
             ValidateAuthority();
@@ -257,7 +195,7 @@ namespace PurrNet
             _list.RemoveAt(idx);
             var change = new SyncListChange<T>(SyncListOperation.Removed, item, idx);
             QueueChange(change);
-            InvokeChange(change);
+            InvokeChangeEvent(change);
 
             return true;
         }
@@ -274,32 +212,7 @@ namespace PurrNet
             _list.RemoveAt(index);
             var change = new SyncListChange<T>(SyncListOperation.Removed, item, index);
             QueueChange(change);
-            InvokeChange(change);
-        }
-
-        public bool Contains(T item) => _list.Contains(item);
-        public void CopyTo(T[] array, int arrayIndex) => _list.CopyTo(array, arrayIndex);
-        public IEnumerator<T> GetEnumerator() => _list.GetEnumerator();
-        public int IndexOf(T item) => _list.IndexOf(item);
-        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-
-        private void ValidateAuthority()
-        {
-            if (!isSpawned) return;
-
-            bool controller = parent.IsController(_ownerAuth);
-            if (!controller)
-            {
-                PurrLogger.LogError(
-                    $"Invalid permissions when modifying '<b>SyncList<{typeof(T).Name}> {name}</b>' on '{parent.name}'." +
-                    $"\nMaybe try enabling owner authority.", parent);
-                throw new InvalidOperationException("Invalid permissions");
-            }
-        }
-
-        private void InvokeChange(SyncListChange<T> change)
-        {
-            onChanged?.Invoke(change);
+            InvokeChangeEvent(change);
         }
 
         /// <summary>
@@ -322,290 +235,13 @@ namespace PurrNet
             var value = _list[index];
             var change = new SyncListChange<T>(SyncListOperation.Set, value, index);
             QueueChange(change);
-            InvokeChange(change);
+            InvokeChangeEvent(change);
         }
 
-        public void OnTick(float delta)
-        {
-            if (!IsController(_ownerAuth))
-                return;
-
-            float timeSinceLastSend = Time.time - _lastSendTime;
-
-            if (timeSinceLastSend < _sendIntervalInSeconds)
-                return;
-
-            if (_isDirty)
-            {
-                foreach (var change in _pendingChanges)
-                {
-                    switch (change.operation)
-                    {
-                        case SyncListOperation.Added:
-                            if (isServer) SendAddToAll(change.value);
-                            else SendAddToServer(change.value);
-                            break;
-                        case SyncListOperation.Removed:
-                            if (isServer) SendRemoveToAll(change.value);
-                            else SendRemoveToServer(change.value);
-                            break;
-                        case SyncListOperation.Insert:
-                            if (isServer) SendInsertToAll(change.index, change.value);
-                            else SendInsertToServer(change.index, change.value);
-                            break;
-                        case SyncListOperation.Set:
-                            if (isServer) SendSetToAll(change.index, change.value);
-                            else SendSetToServer(change.index, change.value);
-                            break;
-                        case SyncListOperation.Cleared:
-                            if (isServer) SendClearToAll();
-                            else SendClearToServer();
-                            break;
-                    }
-                }
-
-                _pendingChanges.Clear();
-                _lastSendTime = Time.time;
-                _wasLastDirty = true;
-                _isDirty = false;
-            }
-            else if (_wasLastDirty)
-            {
-                if(isServer)
-                    SendInitialStateToAll(_list);
-                else
-                    ForceSendReliable();
-                _wasLastDirty = false;
-            }
-        }
-
-        #region RPCs
-
-        [ServerRpc(Channel.ReliableOrdered, requireOwnership: true)]
-        private void SendAddToServer(T item)
-        {
-            if (!_ownerAuth) return;
-            SendAddToOthers(item);
-        }
-
-        [ObserversRpc(Channel.ReliableOrdered, excludeOwner: true)]
-        private void SendAddToOthers(T item)
-        {
-            if (!isServer || isHost)
-            {
-                _list.Add(item);
-                var change = new SyncListChange<T>(SyncListOperation.Added, item, _list.Count - 1);
-                InvokeChange(change);
-            }
-        }
-
-        [ObserversRpc(Channel.ReliableOrdered)]
-        private void SendAddToAll(T item)
-        {
-            if (!isHost)
-            {
-                _list.Add(item);
-                var change = new SyncListChange<T>(SyncListOperation.Added, item, _list.Count - 1);
-                InvokeChange(change);
-            }
-        }
-
-        [ServerRpc(Channel.ReliableOrdered, requireOwnership: true)]
-        private void SendRemoveToServer(T item)
-        {
-            if (!_ownerAuth) return;
-            SendRemoveToOthers(item);
-        }
-
-        [ObserversRpc(Channel.ReliableOrdered, excludeOwner: true)]
-        private void SendRemoveToOthers(T item)
-        {
-            if (!isServer || isHost)
-            {
-                int idx = _list.IndexOf(item);
-                if (idx >= 0)
-                {
-                    _list.RemoveAt(idx);
-                    var change = new SyncListChange<T>(SyncListOperation.Removed, item, idx);
-                    InvokeChange(change);
-                }
-            }
-        }
-
-        [ObserversRpc(Channel.ReliableOrdered)]
-        private void SendRemoveToAll(T item)
-        {
-            if (!isHost)
-            {
-                int idx = _list.IndexOf(item);
-                if (idx >= 0)
-                {
-                    _list.RemoveAt(idx);
-                    var change = new SyncListChange<T>(SyncListOperation.Removed, item, idx);
-                    InvokeChange(change);
-                }
-            }
-        }
-
-        [ServerRpc(Channel.ReliableOrdered, requireOwnership: true)]
-        private void SendRemoveAtToServer(int index)
-        {
-            if (!_ownerAuth) return;
-            SendRemoveAtToOthers(index);
-        }
-
-        [ObserversRpc(Channel.ReliableOrdered, excludeOwner: true)]
-        private void SendRemoveAtToOthers(int index)
-        {
-            if ((!isServer || isHost) && index < _list.Count)
-            {
-                T item = _list[index];
-                _list.RemoveAt(index);
-                var change = new SyncListChange<T>(SyncListOperation.Removed, item, index);
-                InvokeChange(change);
-            }
-        }
-
-        [ObserversRpc(Channel.ReliableOrdered)]
-        private void SendRemoveAtToAll(int index)
-        {
-            if (!isHost && index < _list.Count)
-            {
-                T item = _list[index];
-                _list.RemoveAt(index);
-                var change = new SyncListChange<T>(SyncListOperation.Removed, item, index);
-                InvokeChange(change);
-            }
-        }
-
-        [ServerRpc(Channel.ReliableOrdered, requireOwnership: true)]
-        private void SendClearToServer()
-        {
-            if (!_ownerAuth) return;
-            SendClearToOthers();
-        }
-
-        [ObserversRpc(Channel.ReliableOrdered, excludeOwner: true)]
-        private void SendClearToOthers()
-        {
-            if (!isServer || isHost)
-            {
-                _list.Clear();
-                var change = new SyncListChange<T>(SyncListOperation.Cleared);
-                InvokeChange(change);
-            }
-        }
-
-        [ObserversRpc(Channel.ReliableOrdered)]
-        private void SendClearToAll()
-        {
-            if (!isHost)
-            {
-                _list.Clear();
-                var change = new SyncListChange<T>(SyncListOperation.Cleared);
-                InvokeChange(change);
-            }
-        }
-
-        [ServerRpc(Channel.ReliableOrdered, requireOwnership: true)]
-        private void SendSetToServer(int index, T item)
-        {
-            if (!_ownerAuth) return;
-            SendSetToOthers(index, item);
-        }
-
-        [ObserversRpc(Channel.ReliableOrdered, excludeOwner: true)]
-        private void SendSetToOthers(int index, T item)
-        {
-            if ((!isServer || isHost) && index < _list.Count)
-            {
-                _list[index] = item;
-                var change = new SyncListChange<T>(SyncListOperation.Set, item, index);
-                InvokeChange(change);
-            }
-        }
-
-        [ObserversRpc(Channel.ReliableOrdered)]
-        private void SendSetToAll(int index, T item)
-        {
-            if (!isHost && index < _list.Count)
-            {
-                _list[index] = item;
-                var change = new SyncListChange<T>(SyncListOperation.Set, item, index);
-                InvokeChange(change);
-            }
-        }
-
-        [ServerRpc(Channel.ReliableOrdered, requireOwnership: true)]
-        private void SendInsertToServer(int index, T item)
-        {
-            if (!_ownerAuth) return;
-            SendInsertToOthers(index, item);
-        }
-
-        [ObserversRpc(Channel.ReliableOrdered, excludeOwner: true)]
-        private void SendInsertToOthers(int index, T item)
-        {
-            if ((!isServer || isHost) && index <= _list.Count)
-            {
-                _list.Insert(index, item);
-                var change = new SyncListChange<T>(SyncListOperation.Insert, item, index);
-                InvokeChange(change);
-            }
-        }
-
-        [ObserversRpc(Channel.ReliableOrdered)]
-        private void SendInsertToAll(int index, T item)
-        {
-            if (!isHost && index <= _list.Count)
-            {
-                _list.Insert(index, item);
-                var change = new SyncListChange<T>(SyncListOperation.Insert, item, index);
-                InvokeChange(change);
-            }
-        }
-
-        [ServerRpc(Channel.ReliableOrdered, requireOwnership: true)]
-        private void SendSetDirtyToServer(int index, T value)
-        {
-            if (!_ownerAuth) return;
-            SendSetDirtyToOthers(index, value);
-        }
-
-        [ObserversRpc(Channel.ReliableOrdered, excludeOwner: true)]
-        private void SendSetDirtyToOthers(int index, T value)
-        {
-            if (!isServer || isHost)
-            {
-                if (index >= 0 && index < _list.Count)
-                {
-                    _list[index] = value;
-                    var change = new SyncListChange<T>(SyncListOperation.Set, value, index);
-                    InvokeChange(change);
-                }
-            }
-        }
-
-        [ObserversRpc(Channel.ReliableOrdered)]
-        private void SendSetDirtyToAll(int index, T value)
-        {
-            if (!isHost)
-            {
-                if (index >= 0 && index < _list.Count)
-                {
-                    _list[index] = value;
-                    var change = new SyncListChange<T>(SyncListOperation.Set, value, index);
-                    InvokeChange(change);
-                }
-            }
-        }
-        
-        [ServerRpc(Channel.ReliableOrdered)]
-        private void ForceSendReliable()
-        {
-            SendInitialStateToAll(_list);
-        }
-
-        #endregion
+        public bool Contains(T item) => _list.Contains(item);
+        public void CopyTo(T[] array, int arrayIndex) => _list.CopyTo(array, arrayIndex);
+        public IEnumerator<T> GetEnumerator() => _list.GetEnumerator();
+        public int IndexOf(T item) => _list.IndexOf(item);
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 }
