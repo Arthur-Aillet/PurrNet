@@ -1046,6 +1046,7 @@ namespace PurrNet.Codegen
 
             string ogName = method.Name;
             method.Name = ogName + "_Original_" + id;
+            method.IsPublic = true;
 
             var attributes = MethodAttributes.Public | MethodAttributes.HideBySig;
 
