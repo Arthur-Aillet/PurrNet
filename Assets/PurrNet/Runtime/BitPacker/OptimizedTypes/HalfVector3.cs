@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace PurrNet.Packing
 {
-    public struct HalfVector3 : IEquatable<HalfVector3>
+    public struct HalfVector3 : IEquatable<HalfVector3>, IPackedAuto
     {
         public Half x;
         public Half y;

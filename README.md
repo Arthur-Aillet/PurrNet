@@ -34,6 +34,8 @@ You can also fallback to the asset store but versions will be behind.
 - WebSockets
 - Steam
 - Local (no socket)
+- PurrTransport (Relay free for development)
+- Composite (Allows multiple transports)
 
 ### Spawning and Despawning
 

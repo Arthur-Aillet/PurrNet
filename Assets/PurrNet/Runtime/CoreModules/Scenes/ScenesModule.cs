@@ -177,6 +177,25 @@ namespace PurrNet.Modules
 
         private bool _wasSetup;
 
+        static GameObject _dontDestroyOnLoad;
+
+        private static Scene GetDontDestroyOnLoadScene()
+        {
+            if (_dontDestroyOnLoad)
+                return _dontDestroyOnLoad.scene;
+            _dontDestroyOnLoad = new GameObject("PurrNet:DontDestroyOnLoad")
+            {
+                hideFlags = HideFlags.DontSave | HideFlags.HideInHierarchy
+            };
+            Object.DontDestroyOnLoad(_dontDestroyOnLoad);
+            return _dontDestroyOnLoad.scene;
+        }
+
+        static bool IsDontDestroyOnLoadScene(Scene scene)
+        {
+            return scene.name is "DontDestroyOnLoad";
+        }
+
         private void Setup(bool asServer)
         {
             _wasSetup = true;
@@ -184,6 +203,9 @@ namespace PurrNet.Modules
 
             var currentScene = _networkManager.gameObject.scene;
             var originalScene = _networkManager.originalScene;
+
+            var hasDontDestroyOnLoadScene = IsDontDestroyOnLoadScene(currentScene) ||
+                                          IsDontDestroyOnLoadScene(originalScene);
 
             AddScene(currentScene, new PurrSceneSettings
             {
@@ -195,6 +217,19 @@ namespace PurrNet.Modules
             if (currentScene != originalScene && originalScene.IsValid())
             {
                 AddScene(originalScene, new PurrSceneSettings
+                {
+                    mode = LoadSceneMode.Additive,
+                    isPublic = true,
+                    physicsMode = LocalPhysicsMode.None
+                }, GetNextID());
+            }
+
+            var rules = _networkManager.networkRules;
+
+            if (!hasDontDestroyOnLoadScene && rules && rules.ShouldAlwaysIncludeDontDestroyOnLoadScene())
+            {
+                var dontDestroyScene = GetDontDestroyOnLoadScene();
+                AddScene(dontDestroyScene, new PurrSceneSettings
                 {
                     mode = LoadSceneMode.Additive,
                     isPublic = true,
@@ -350,9 +385,7 @@ namespace PurrNet.Modules
             {
                 if (_scenes.TryGetValue(_rawScenes[i], out var state))
                 {
-                    bool isDontDestroyOnLoad = state.scene.name == "DontDestroyOnLoad";
-
-                    if (isDontDestroyOnLoad)
+                    if (IsDontDestroyOnLoadScene(state.scene))
                         continue;
 
                     if (state.scene.isLoaded)
@@ -395,8 +428,7 @@ namespace PurrNet.Modules
                     {
                         for (int i = 0; i < _rawScenes.Count; i++)
                         {
-                            bool isDontDestroyOnLoad = _scenes[_rawScenes[i]].scene.name == "DontDestroyOnLoad";
-                            if (!isDontDestroyOnLoad)
+                            if (!IsDontDestroyOnLoadScene(_scenes[_rawScenes[i]].scene))
                                 RemoveScene(_scenes[_rawScenes[i]].scene);
                         }
                     }
@@ -622,7 +654,7 @@ namespace PurrNet.Modules
                 if (TryGetSceneID(_networkManager.gameObject.scene, out var nmId) &&
                     TryGetSceneState(nmId, out var nmScene))
                 {
-                    if (nmScene.scene.name != "DontDestroyOnLoad")
+                    if (!IsDontDestroyOnLoadScene(nmScene.scene))
                     {
                         PurrLogger.LogError("Network manager scene is not DontDestroyOnLoad and you are trying to" +
                                             " load a new scene with LoadSceneMode.Single");
@@ -631,7 +663,7 @@ namespace PurrNet.Modules
 
                 for (int i = 0; i < _rawScenes.Count; i++)
                 {
-                    bool isDontDestroyOnLoad = _scenes[_rawScenes[i]].scene.name == "DontDestroyOnLoad";
+                    bool isDontDestroyOnLoad = IsDontDestroyOnLoadScene(_scenes[_rawScenes[i]].scene);
                     if (!isDontDestroyOnLoad)
                         RemoveScene(_scenes[_rawScenes[i]].scene);
                 }
@@ -965,9 +997,7 @@ namespace PurrNet.Modules
                     if (!unityScene.isLoaded)
                         continue;
 
-                    bool isDontDestroyOnLoad = unityScene.name == "DontDestroyOnLoad";
-
-                    if (isDontDestroyOnLoad)
+                    if (IsDontDestroyOnLoadScene(unityScene))
                         continue;
 
                     _pendingUnloads.Add(SceneManager.UnloadSceneAsync(unityScene));

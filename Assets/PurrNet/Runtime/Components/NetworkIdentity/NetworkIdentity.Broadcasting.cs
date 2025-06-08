@@ -424,15 +424,15 @@ namespace PurrNet
                 case RPCType.ObserversRPC:
                 {
                     var rawData = BroadcastModule.GetImmediateData(data);
-                    AppendToBufferedRPCs(signature, data, module);
                     SendToObservers(rawData, predicate, signature.channel);
+                    AppendToBufferedRPCs(signature, data, module);
                     return !isClient;
                 }
                 case RPCType.TargetRPC:
                 {
                     var rawData = BroadcastModule.GetImmediateData(data);
-                    AppendToBufferedRPCs(signature, data, module);
                     SendToTarget(data.targetPlayerId, rawData, signature.channel);
+                    AppendToBufferedRPCs(signature, data, module);
                     return false;
                 }
                 default: throw new ArgumentOutOfRangeException(nameof(signature.type));

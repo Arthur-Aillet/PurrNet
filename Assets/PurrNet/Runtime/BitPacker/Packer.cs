@@ -21,6 +21,20 @@ namespace PurrNet.Packing
         static DeltaWriteFunc<T> _write;
         static DeltaReadFunc<T> _read;
 
+        public static int GetNecessaryBitsToWrite(in T oldValue, in T newValue)
+        {
+            if (_write == null)
+            {
+                PurrLogger.LogError($"No delta writer for type '{typeof(T)}' is registered.");
+                return 0;
+            }
+
+            using var packer = BitPackerPool.Get();
+            if (_write(packer, oldValue, newValue))
+                return packer.positionInBits;
+            return 0;
+        }
+
         public static void Register(DeltaWriteFunc<T> write, DeltaReadFunc<T> read)
         {
             RegisterWriter(write);
@@ -204,6 +218,13 @@ namespace PurrNet.Packing
             }
         }
 
+        public static T Read(BitPacker packer)
+        {
+            var value = default(T);
+            Read(packer, ref value);
+            return value;
+        }
+
         public static void Serialize(BitPacker packer, ref T value)
         {
             if (packer.isWriting)
@@ -236,17 +257,35 @@ namespace PurrNet.Packing
             Packer<T>.Write(packerA, a);
             Packer<T>.Write(packerB, b);
 
-            var spanA = packerA.ToByteData().span;
-            var spanB = packerB.ToByteData().span;
-
-            // Write a zero byte to the end of the packer to ensure the bits are aligned
-            Packer<byte>.Write(packerA, 0);
-            Packer<byte>.Write(packerB, 0);
-
-            if (spanA.Length != spanB.Length)
+            if (packerA.positionInBits != packerB.positionInBits)
                 return false;
 
-            return spanA.SequenceEqual(spanB);
+            int bits = packerA.positionInBits;
+
+            packerA.ResetPositionAndMode(true);
+            packerB.ResetPositionAndMode(true);
+
+            while (bits >= 64)
+            {
+                ulong aBits = packerA.ReadBits(64);
+                ulong bBits = packerB.ReadBits(64);
+
+                if (aBits != bBits)
+                    return false;
+
+                bits -= 64;
+            }
+
+            if (bits > 0)
+            {
+                var remainingBits = (byte)bits;
+                ulong aBits = packerA.ReadBits(remainingBits);
+                ulong bBits = packerB.ReadBits(remainingBits);
+                if (aBits != bBits)
+                    return false;
+            }
+
+            return true;
         }
 
         [UsedByIL]

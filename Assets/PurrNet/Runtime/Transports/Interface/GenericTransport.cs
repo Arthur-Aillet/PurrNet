@@ -62,10 +62,23 @@ namespace PurrNet.Transports
         /// If you do not pass a NetworkManager, it will try to find one in the hierarchy.
         /// </summary>
         /// <param name="manager">The NetworkManager to register server modules.</param>
-        public void StartServer(NetworkManager manager = null)
+        public void StartServer()
+        {
+            if (TryGetNetworkManager(NetworkManager.main, out var networkManager))
+                networkManager.StartServer();
+        }
+
+        internal void StartServer(NetworkManager manager)
         {
             if (TryGetNetworkManager(manager, out var networkManager))
+            {
+                if (networkManager.serverState != ConnectionState.Disconnected)
+                {
+                    Debug.LogError($"[{GetType().Name}] Cannot start server since it is already running.");
+                    return;
+                }
                 networkManager.InternalRegisterServerModules();
+            }
 
             StartServerInternal();
         }
@@ -74,7 +87,13 @@ namespace PurrNet.Transports
         /// Stops the server.
         /// This will disconnect all clients.
         /// </summary>
-        public void StopServer(NetworkManager manager = null)
+        public void StopServer()
+        {
+            if (TryGetNetworkManager(NetworkManager.main, out var networkManager))
+                networkManager.StopServer();
+        }
+
+        internal void StopServer(NetworkManager manager)
         {
             if (TryGetNetworkManager(manager, out var networkManager))
                 networkManager.InternalUnregisterServerModules();
@@ -88,10 +107,23 @@ namespace PurrNet.Transports
         /// If you do not pass a NetworkManager, it will try to find one in the hierarchy.
         /// </summary>
         /// <param name="manager">The NetworkManager to register client modules.</param>
-        public void StartClient(NetworkManager manager = null)
+        public void StartClient()
+        {
+            if (TryGetNetworkManager(NetworkManager.main, out var networkManager))
+                networkManager.StartClient();
+        }
+
+        internal void StartClient(NetworkManager manager)
         {
             if (TryGetNetworkManager(manager, out var networkManager))
+            {
+                if (networkManager.clientState != ConnectionState.Disconnected)
+                {
+                    Debug.LogError($"[{GetType().Name}] Cannot start client since it is already running.");
+                    return;
+                }
                 networkManager.InternalRegisterClientModules();
+            }
 
             StartClientInternal();
         }
@@ -103,7 +135,13 @@ namespace PurrNet.Transports
         /// If you do not pass a NetworkManager, it will try to find one in the hierarchy.
         /// </summary>
         /// <param name="manager">The NetworkManager to unregister client modules.</param>
-        public void StopClient(NetworkManager manager = null)
+        public void StopClient()
+        {
+            if (TryGetNetworkManager(NetworkManager.main, out var networkManager))
+                networkManager.StopClient();
+        }
+
+        internal void StopClient(NetworkManager manager)
         {
             if (TryGetNetworkManager(manager, out var networkManager))
                 networkManager.InternalUnregisterClientModules();

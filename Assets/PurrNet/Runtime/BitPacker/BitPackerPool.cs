@@ -18,9 +18,7 @@ namespace PurrNet.Packing
 
         static void Reset(BitPacker list) => list.ResetPosition();
 
-        public BitPackerPool() : base(Factory, Reset)
-        {
-        }
+        private BitPackerPool() : base(Factory, Reset) {}
 
         public static BitPacker Get(bool readMode = false)
         {
@@ -34,6 +32,11 @@ namespace PurrNet.Packing
             if (packer.isWrapper)
                 _instanceTmp.Delete(packer);
             else _instance.Delete(packer);
+        }
+
+        public static BitPacker Get(byte[] from)
+        {
+            return Get(new ByteData(from, 0, from.Length));
         }
 
         public static BitPacker Get(ByteData from)

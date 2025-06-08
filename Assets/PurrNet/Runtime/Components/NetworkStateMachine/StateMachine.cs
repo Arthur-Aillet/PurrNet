@@ -3,15 +3,19 @@ using System.Collections.Generic;
 using PurrNet.Logging;
 using PurrNet.Packing;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace PurrNet.StateMachine
 {
     [DefaultExecutionOrder(-1000)]
     public sealed class StateMachine : NetworkBehaviour
     {
-        [SerializeField] private bool ownerAuth = false;
+        [FormerlySerializedAs("ownerAuth")] 
+        [SerializeField] private bool _ownerAuth = false;
 
-        public bool OwnerAuth => ownerAuth;
+        [Obsolete("User ownerAuth")]
+        public bool OwnerAuth => _ownerAuth;
+        public bool ownerAuth => _ownerAuth;
 
         [SerializeField] private List<StateNode> _states = new();
         private SyncList<StateNode> _syncedStates;
@@ -50,7 +54,7 @@ namespace PurrNet.StateMachine
 
         private void Awake()
         {
-            _syncedStates = new SyncList<StateNode>(_states, ownerAuth);
+            _syncedStates = new SyncList<StateNode>(_states, _ownerAuth);
             _syncedStates.onChanged += OnSyncedStateListChanged;
             _currentState.stateId = -1;
 
@@ -77,6 +81,7 @@ namespace PurrNet.StateMachine
                 node.StateUpdate(true);
             if(isClient)
                 node.StateUpdate(false);
+            node.StateUpdate();
         }
         
         void LateUpdate()
@@ -92,7 +97,7 @@ namespace PurrNet.StateMachine
         {
             base.OnSpawned();
             
-            if (!IsController(ownerAuth))
+            if (!IsController(_ownerAuth))
                 return;
 
             if (_initialized)
@@ -102,6 +107,26 @@ namespace PurrNet.StateMachine
                 SetState(_syncedStates[0]);
 
             _initialized = true;
+        }
+
+        protected override void OnDespawned(bool asServer)
+        {
+            base.OnDespawned(asServer);
+
+            if (_currentState.stateId < 0 || _currentState.stateId >= _syncedStates.Count)
+                return;
+            
+            _states[_currentState.stateId].Exit(asServer);
+        }
+
+        protected override void OnDespawned()
+        {
+            base.OnDespawned();
+            
+            if (_currentState.stateId < 0 || _currentState.stateId >= _syncedStates.Count)
+                return;
+            
+            _states[_currentState.stateId].Exit();
         }
 
         protected override void OnObserverAdded(PlayerID player)
@@ -156,7 +181,7 @@ namespace PurrNet.StateMachine
                 return;
             }
             
-            if (!IsController(ownerAuth))
+            if (!IsController(_ownerAuth))
             {
                 PurrLogger.LogError($"Failed to add state {state.name}:{state.GetType().Name} | Only the controller can add states");
                 return;
@@ -179,7 +204,7 @@ namespace PurrNet.StateMachine
                 return;
             }
             
-            if (!IsController(ownerAuth))
+            if (!IsController(_ownerAuth))
             {
                 PurrLogger.LogError($"Failed to insert state at index: {index} | State: {state.name}:{state.GetType().Name} | Only the controller can add states");
                 return;
@@ -201,7 +226,7 @@ namespace PurrNet.StateMachine
                 return false;
             }
             
-            if (!IsController(ownerAuth))
+            if (!IsController(_ownerAuth))
             {
                 PurrLogger.LogError($"Failed to remove state {state.name}:{state.GetType().Name} | Only the controller can remove states");
                 return false;
@@ -222,7 +247,7 @@ namespace PurrNet.StateMachine
         /// <param name="index">The index at which you wish to remove a state</param>
         public void RemoveStateAt(int index)
         {
-            if (!IsController(ownerAuth))
+            if (!IsController(_ownerAuth))
             {
                 PurrLogger.LogError($"Failed to remove state at index {index} | Only the controller can remove states");
                 return;
@@ -277,7 +302,7 @@ namespace PurrNet.StateMachine
         [ObserversRpc(bufferLast: true)]
         private void RpcStateChange<T>(StateMachineState state, bool hasData, T data)
         {
-            if (IsController(ownerAuth)) return;
+            if (IsController(_ownerAuth)) return;
 
             var activeState = _currentState.stateId < 0 || _currentState.stateId >= _syncedStates.Count
                 ? null
@@ -291,6 +316,7 @@ namespace PurrNet.StateMachine
                         activeState.Exit(true);
                     if (isClient)
                         activeState.Exit(false);
+                    activeState.Exit();
                 }
             }
             catch(Exception e)
@@ -322,6 +348,7 @@ namespace PurrNet.StateMachine
                         node.Enter(data, true);
                     if(isClient)
                         node.Enter(data, false);
+                    node.Enter(data);
                 }
                 else
                 {
@@ -329,6 +356,7 @@ namespace PurrNet.StateMachine
                         newState.Enter(true);
                     if(isClient)
                         newState.Enter(false);
+                    newState.Enter();
                 }
             }
             catch(Exception e)
@@ -355,7 +383,7 @@ namespace PurrNet.StateMachine
         [TargetRpc]
         private void RpcStateChange_Target<T>(PlayerID target, StateMachineState state, bool hasData, T data)
         {
-            if (IsController(ownerAuth)) return;
+            if (IsController(_ownerAuth)) return;
 
             _currentState = state;
             _currentState.data = data;
@@ -376,10 +404,12 @@ namespace PurrNet.StateMachine
                 if (hasData && newState is StateNode<T> node)
                 {
                     node.Enter(data, false);
+                    node.Enter(data);
                 }
                 else
                 {
                     newState.Enter(false);
+                    newState.Enter();
                 }
             }
             catch(Exception e)
@@ -412,6 +442,7 @@ namespace PurrNet.StateMachine
                         oldState.Exit(true);
                     if (isClient)
                         oldState.Exit(false);
+                    oldState.Exit();
                 }
             }
             catch (Exception e)
@@ -441,10 +472,10 @@ namespace PurrNet.StateMachine
 
         private void SetStateInternal<T>(StateNode<T> state, T data)
         {
-            if (!IsController(ownerAuth))
+            if (!IsController(_ownerAuth))
             {
                 PurrLogger.LogError(
-                    $"Only the controller can set state. Non-owner tried to set state to {state.name}:{state.GetType().Name} | OwnerAuth: {ownerAuth}"
+                    $"Only the controller can set state. Non-owner tried to set state to {state.name}:{state.GetType().Name} | OwnerAuth: {_ownerAuth}"
                 );
                 return;
             }
@@ -472,6 +503,7 @@ namespace PurrNet.StateMachine
                         state.Enter(data, true);
                     if(isClient)
                         state.Enter(data, false);
+                    state.Enter(data);
                 }
             }
             catch (Exception e)
@@ -498,10 +530,10 @@ namespace PurrNet.StateMachine
 
         private void SetStateInternal(StateNode state)
         {
-            if (!IsController(ownerAuth))
+            if (!IsController(_ownerAuth))
             {
                 PurrLogger.LogError(
-                    $"Only the controller can set state. Non-owner tried to set state to {state.name}:{state.GetType().Name} | OwnerAuth: {ownerAuth}"
+                    $"Only the controller can set state. Non-owner tried to set state to {state.name}:{state.GetType().Name} | OwnerAuth: {_ownerAuth}"
                 );
                 return;
             }
@@ -529,6 +561,7 @@ namespace PurrNet.StateMachine
                         state.Enter(true);
                     if(isClient)
                         state.Enter(false);
+                    state.Enter();
                 }
             }
             catch (Exception e)

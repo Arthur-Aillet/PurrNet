@@ -1,27 +1,28 @@
-﻿using System;
-using PurrNet.Modules;
+﻿using PurrNet.Modules;
 
 namespace PurrNet.Packing
 {
     public static class FloatPacking
     {
         [UsedByIL]
-        public static void Write(this BitPacker packer, float data)
+        public static unsafe void Write(this BitPacker packer, float data)
         {
-            packer.WriteBits((ulong)BitConverter.SingleToInt32Bits(data), 32);
+            ulong bits = *(uint*)&data;
+            packer.WriteBits(bits, 32);
         }
 
         [UsedByIL]
-        public static void Read(this BitPacker packer, ref float data)
+        public static unsafe void Read(this BitPacker packer, ref float data)
         {
-            data = BitConverter.Int32BitsToSingle((int)packer.ReadBits(32));
+            ulong bits = packer.ReadBits(32);
+            data = *(float*)&bits;
         }
 
         [UsedByIL]
-        private static bool WriteSingle(BitPacker packer, float oldvalue, float newvalue)
+        private static unsafe bool WriteSingle(BitPacker packer, float oldvalue, float newvalue)
         {
-            var newbits = BitConverter.SingleToInt32Bits(newvalue);
-            var oldbits = BitConverter.SingleToInt32Bits(oldvalue);
+            uint newbits = *(uint*)&newvalue;
+            uint oldbits = *(uint*)&oldvalue;
 
             if (newbits == oldbits)
             {
@@ -31,25 +32,28 @@ namespace PurrNet.Packing
 
             Packer<bool>.Write(packer, true);
 
-            bool newSign = (newbits & 0x80000000) != 0;
-            int newExp = (newbits & 0x7F800000) >> 23;
-            int newMantissa = newbits & 0x007FFFFF;
+            // Extract components more efficiently
+            uint newSign = newbits >> 31;
+            uint oldSign = oldbits >> 31;
 
-            int oldExp = (oldbits & 0x7F800000) >> 23;
-            int oldMantissa = oldbits & 0x007FFFFF;
+            int newExp = (int)((newbits >> 23) & 0xFF);
+            int oldExp = (int)((oldbits >> 23) & 0xFF);
 
-            int expDiff = newExp - oldExp;
-            int mantissaDiff = newMantissa - oldMantissa;
+            int newMantissa = (int)(newbits & 0x7FFFFF);
+            int oldMantissa = (int)(oldbits & 0x7FFFFF);
 
-            Packer<bool>.Write(packer, newSign);
-            Packer<PackedInt>.Write(packer, expDiff);
-            Packer<PackedInt>.Write(packer, mantissaDiff);
+            // Pack sign change as single bit instead of full sign
+            bool signChanged = newSign != oldSign;
+            Packer<bool>.Write(packer, signChanged);
+
+            Packer<PackedInt>.Write(packer, newExp - oldExp);
+            Packer<PackedInt>.Write(packer, newMantissa - oldMantissa);
 
             return true;
         }
 
         [UsedByIL]
-        private static void ReadSingle(BitPacker packer, float oldvalue, ref float value)
+        private static unsafe void ReadSingle(BitPacker packer, float oldvalue, ref float value)
         {
             bool hasChanged = default;
             Packer<bool>.Read(packer, ref hasChanged);
@@ -60,23 +64,23 @@ namespace PurrNet.Packing
                 return;
             }
 
-            var oldbits = BitConverter.SingleToInt32Bits(oldvalue);
-            int oldExp = (oldbits & 0x7F800000) >> 23;
-            int oldMantissa = oldbits & 0x007FFFFF;
+            uint oldbits = *(uint*)&oldvalue;
 
-            bool newSign = default;
-            PackedInt newExp = default;
-            PackedInt newMantissa = default;
+            bool signChanged = default;
+            PackedInt expDiff = default;
+            PackedInt mantissaDiff = default;
 
-            Packer<bool>.Read(packer, ref newSign);
-            Packer<PackedInt>.Read(packer, ref newExp);
-            Packer<PackedInt>.Read(packer, ref newMantissa);
+            Packer<bool>.Read(packer, ref signChanged);
+            Packer<PackedInt>.Read(packer, ref expDiff);
+            Packer<PackedInt>.Read(packer, ref mantissaDiff);
 
-            newExp += oldExp;
-            newMantissa += oldMantissa;
+            // Reconstruct efficiently
+            uint sign = (oldbits >> 31) ^ (signChanged ? 1u : 0u);
+            uint exp = (uint)((int)((oldbits >> 23) & 0xFF) + expDiff.value) & 0xFF;
+            uint mantissa = (uint)((int)(oldbits & 0x7FFFFF) + mantissaDiff.value) & 0x7FFFFF;
 
-            int bits = (int)(newSign ? 0x80000000 : 0) | (newExp << 23) | newMantissa;
-            value = BitConverter.Int32BitsToSingle(bits);
+            uint bits = (sign << 31) | (exp << 23) | mantissa;
+            value = *(float*)&bits;
         }
     }
 }

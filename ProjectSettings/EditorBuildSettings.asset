@@ -17,6 +17,15 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Examples/SceneLoading/SceneLoading2.unity
     guid: 5a1de0134ee2e5743ba855d44896905b
+  - enabled: 1
+    path: Assets/Issues/Judsin/JudsinIssue-Bootstrap.unity
+    guid: 76fd1daf44a735d4c9085e871df76d71
+  - enabled: 1
+    path: Assets/Issues/Judsin/JudsinIssue-Loading.unity
+    guid: de009e0008cf2234cbb134346ca1c246
+  - enabled: 1
+    path: Assets/Issues/Judsin/JudsinIssue-Game.unity
+    guid: f9d951a576a5ffa47aaceab7b76143c4
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
     com.unity.xr.arfoundation.simulation_settings: {fileID: 11400000, guid: 2c2e68bebf1c66f46aa9096fabba66a2, type: 2}

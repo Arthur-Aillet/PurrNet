@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace PurrNet.Packing
 {
-    public struct HalfVector4
+    public struct HalfVector4 : IPackedAuto
     {
         public Half x;
         public Half y;

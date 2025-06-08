@@ -67,14 +67,19 @@ namespace PurrNet.Packing
 
         public bool isWrapper { get; private set; }
 
-        public int positionInBits { get; private set; }
+        private int _positionInBits;
+
+        public int positionInBits
+        {
+            get => _positionInBits;
+        }
 
         public int positionInBytes
         {
             get
             {
-                int pos = positionInBits / 8;
-                int len = pos + (positionInBits % 8 == 0 ? 0 : 1);
+                int pos = _positionInBits / 8;
+                int len = pos + (_positionInBits % 8 == 0 ? 0 : 1);
                 return len;
             }
         }
@@ -92,8 +97,6 @@ namespace PurrNet.Packing
         public bool isReading => _isReading;
 
         public bool isWriting => !_isReading;
-
-        public int Length => length;
 
         /// <summary>
         /// Pickles the current buffer into the provided BitPacker.
@@ -126,7 +129,7 @@ namespace PurrNet.Packing
         public BitPacker Pickle(LZ4Level level = LZ4Level.L00_FAST)
         {
             var packer = BitPackerPool.Get();
-            packer.EnsureBitsExist(positionInBits);
+            packer.EnsureBitsExist(_positionInBits);
             PickleInto(packer, level);
             return packer;
         }
@@ -134,14 +137,14 @@ namespace PurrNet.Packing
         public void Advance(int count)
         {
             EnsureBitsExist(count * 8);
-            positionInBits += count * 8;
+            _positionInBits += count * 8;
         }
 
         public int AdvanceBits(int bitCount)
         {
             EnsureBitsExist(bitCount);
-            var old = positionInBits;
-            positionInBits += bitCount;
+            var old = _positionInBits;
+            _positionInBits += bitCount;
             return old;
         }
 
@@ -165,7 +168,7 @@ namespace PurrNet.Packing
         public void MakeWrapper(ByteData data)
         {
             _buffer = data.data;
-            positionInBits = data.offset * 8;
+            _positionInBits = data.offset * 8;
             isWrapper = true;
         }
 
@@ -181,7 +184,7 @@ namespace PurrNet.Packing
 
         public void ResetPosition()
         {
-            positionInBits = 0;
+            _positionInBits = 0;
         }
 
         public void ResetMode(bool readMode)
@@ -191,36 +194,33 @@ namespace PurrNet.Packing
 
         public void SetBitPosition(int bitPosition)
         {
-            positionInBits = bitPosition;
+            _positionInBits = bitPosition;
         }
 
         public void SkipBytes(int skip)
         {
-            positionInBits += skip * 8;
+            _positionInBits += skip * 8;
         }
 
         public void SkipBytes(uint skip)
         {
-            positionInBits += (int)skip * 8;
+            _positionInBits += (int)skip * 8;
         }
 
         public void ResetPositionAndMode(bool readMode)
         {
-            positionInBits = 0;
+            _positionInBits = 0;
             _isReading = readMode;
         }
 
         public void EnsureBitsExist(int bits)
         {
-            int targetPos = positionInBits + bits;
-            var bufferBitSize = _buffer.Length * 8;
-
-            if (targetPos > bufferBitSize)
+            int targetPos = _positionInBits + bits;
+            if (targetPos > _buffer.Length << 3)
             {
                 if (_isReading)
-                    throw new IndexOutOfRangeException("Not enough bits in the buffer. | " + targetPos + " > " +
-                                                       bufferBitSize);
-                Array.Resize(ref _buffer, _buffer.Length * 2);
+                    throw new IndexOutOfRangeException($"Not enough bits in the buffer. | {targetPos} > {_buffer.Length << 3}");
+                Array.Resize(ref _buffer, (_buffer.Length + bits) * 2);
             }
         }
 
@@ -293,6 +293,20 @@ namespace PurrNet.Packing
             return true;
         }
 
+        public void WriteBits(BitPacker packer)
+        {
+            var bits = packer._positionInBits;
+
+            EnsureBitsExist(bits);
+
+            int chunks = bits / 64;
+            byte excess = (byte)(bits % 64);
+
+            for (int i = 0; i < chunks; i++)
+                WriteBitsWithoutChecks(packer.ReadBits(64), 64);
+            WriteBitsWithoutChecks(packer.ReadBits(excess), excess);
+        }
+
         public void WriteBits(BitPacker packer, int bits)
         {
             EnsureBitsExist(bits);
@@ -301,48 +315,212 @@ namespace PurrNet.Packing
             byte excess = (byte)(bits % 64);
 
             for (int i = 0; i < chunks; i++)
-                WriteBits(packer.ReadBits(64), 64);
-            WriteBits(packer.ReadBits(excess), excess);
+                WriteBitsWithoutChecks(packer.ReadBits(64), 64);
+            WriteBitsWithoutChecks(packer.ReadBits(excess), excess);
         }
 
         public void WriteBits(ulong data, byte bits)
         {
             EnsureBitsExist(bits);
-
-            if (bits > 64)
-                throw new ArgumentOutOfRangeException(nameof(bits), "Cannot write more than 64 bits at a time.");
-
-            int bitsLeft = bits;
-
-            while (bitsLeft > 0)
-            {
-                int bytePos = positionInBits / 8;
-                int bitOffset = positionInBits % 8;
-                int bitsToWrite = Math.Min(bitsLeft, 8 - bitOffset);
-
-                byte mask = (byte)((1 << bitsToWrite) - 1);
-                byte value = (byte)((data >> (bits - bitsLeft)) & mask);
-
-                _buffer[bytePos] &= (byte)~(mask << bitOffset); // Clear the bits to be written
-                _buffer[bytePos] |= (byte)(value << bitOffset); // Set the bits
-
-                bitsLeft -= bitsToWrite;
-                positionInBits += bitsToWrite;
-            }
+            WriteBitsWithoutChecks(data, bits);
         }
 
-        public ulong ReadBits(byte bits)
+        public unsafe void WriteBitsWithoutChecks(ulong data, byte bits)
+        {
+            if (bits > 64)
+                throw new ArgumentOutOfRangeException(nameof(bits));
+
+            int bytePos = _positionInBits >> 3;
+            int bitOffset = _positionInBits & 7;
+
+            fixed (byte* b = &_buffer[bytePos])
+            {
+                if (bitOffset == 0)
+                {
+                    // Fast path: byte-aligned writes
+                    switch (bits)
+                    {
+                        case 8:
+                            *b = (byte)data;
+                            break;
+                        case 16:
+                            *(ushort*)b = (ushort)data;
+                            break;
+                        case 32:
+                            *(uint*)b = (uint)data;
+                            break;
+                        case 64:
+                            *(ulong*)b = data;
+                            break;
+                        default:
+                            if (bits <= 8)
+                            {
+                                byte mask = (byte)((1 << bits) - 1);
+                                *b = (byte)((*b & ~mask) | ((byte)data & mask));
+                            }
+                            else
+                            {
+                                // Write full bytes + remainder
+                                int fullBytes = bits >> 3;
+                                int remainderBits = bits & 7;
+
+                                for (int i = 0; i < fullBytes; i++)
+                                    b[i] = (byte)(data >> (i * 8));
+
+                                if (remainderBits > 0)
+                                {
+                                    byte mask = (byte)((1 << remainderBits) - 1);
+                                    byte value = (byte)(data >> (fullBytes * 8));
+                                    b[fullBytes] = (byte)((b[fullBytes] & ~mask) | (value & mask));
+                                }
+                            }
+                            break;
+                    }
+                }
+                else
+                {
+                    // Unaligned write - shift data and write as 64-bit + remainder
+                    ulong shifted = data << bitOffset;
+                    int totalBits = bits + bitOffset;
+                    int bytesToWrite = (totalBits + 7) >> 3;
+
+                    ulong existing = 0;
+                    if (bytesToWrite <= 8)
+                        existing = *(ulong*)b & ((1UL << bitOffset) - 1);
+
+                    ulong mask = ((1UL << bits) - 1) << bitOffset;
+                    ulong combined = (existing) | (shifted & mask);
+
+                    if (totalBits <= 64)
+                    {
+                        // Preserve bits beyond our write
+                        int preserveBits = 64 - totalBits;
+                        if (preserveBits > 0)
+                        {
+                            ulong preserveMask = ~((1UL << totalBits) - 1);
+                            combined |= *(ulong*)b & preserveMask;
+                        }
+                        *(ulong*)b = combined;
+                    }
+                    else
+                    {
+                        // Fallback to original method for edge cases
+                        goto SlowPath;
+                    }
+                }
+            }
+
+            _positionInBits += bits;
+            return;
+
+        SlowPath:
+            // Original implementation as fallback
+            fixed (byte* b = &_buffer[bytePos])
+            {
+                byte* ptr = b;
+                int bitsLeft = bits;
+
+                while (bitsLeft > 0)
+                {
+                    int bitsToWrite = Math.Min(bitsLeft, 8 - bitOffset);
+                    byte mask = (byte)((1 << bitsToWrite) - 1);
+                    byte value = (byte)((data >> (bits - bitsLeft)) & mask);
+
+                    *ptr = (byte)((*ptr & ~(mask << bitOffset)) | (value << bitOffset));
+
+                    bitsLeft -= bitsToWrite;
+                    bitOffset = 0;
+                    ptr++;
+                }
+            }
+            _positionInBits += bits;
+        }
+
+        public unsafe ulong ReadBits(byte bits)
         {
             if (bits > 64)
                 throw new ArgumentOutOfRangeException(nameof(bits), "Cannot read more than 64 bits at a time.");
 
-            ulong result = 0;
+            int bytePos = _positionInBits >> 3;
+            int bitOffset = _positionInBits & 7;
+
+            ulong result;
+
+            fixed (byte* b = &_buffer[bytePos])
+            {
+                if (bitOffset == 0)
+                {
+                    // Fast path: byte-aligned reads
+                    switch (bits)
+                    {
+                        case 8:
+                            result = *b;
+                            break;
+                        case 16:
+                            result = *(ushort*)b;
+                            break;
+                        case 32:
+                            result = *(uint*)b;
+                            break;
+                        case 64:
+                            result = *(ulong*)b;
+                            break;
+                        default:
+                            if (bits <= 8)
+                            {
+                                ulong mask = (1UL << bits) - 1;
+                                result = *b & mask;
+                            }
+                            else
+                            {
+                                // Read full bytes + remainder
+                                int fullBytes = bits >> 3;
+                                int remainderBits = bits & 7;
+
+                                result = 0;
+                                for (int i = 0; i < fullBytes; i++)
+                                    result |= (ulong)b[i] << (i * 8);
+
+                                if (remainderBits > 0)
+                                {
+                                    ulong mask = (1UL << remainderBits) - 1;
+                                    result |= (b[fullBytes] & mask) << (fullBytes * 8);
+                                }
+                            }
+                            break;
+                    }
+                }
+                else
+                {
+                    // Unaligned read - read as 64-bit and extract bits
+                    int totalBits = bits + bitOffset;
+
+                    if (totalBits <= 64)
+                    {
+                        ulong data = *(ulong*)b;
+                        ulong mask = (1UL << bits) - 1;
+                        result = (data >> bitOffset) & mask;
+                    }
+                    else
+                    {
+                        // Fallback for edge cases
+                        goto SlowPath;
+                    }
+                }
+            }
+
+            _positionInBits += bits;
+            return result;
+
+        SlowPath:
+            // Original implementation as fallback
+            result = 0;
             int bitsLeft = bits;
 
             while (bitsLeft > 0)
             {
-                int bytePos = positionInBits / 8;
-                int bitOffset = positionInBits % 8;
+                bytePos = _positionInBits >> 3;
+                bitOffset = _positionInBits & 7;
                 int bitsToRead = Math.Min(bitsLeft, 8 - bitOffset);
 
                 byte mask = (byte)((1 << bitsToRead) - 1);
@@ -351,7 +529,7 @@ namespace PurrNet.Packing
                 result |= (ulong)value << (bits - bitsLeft);
 
                 bitsLeft -= bitsToRead;
-                positionInBits += bitsToRead;
+                _positionInBits += bitsToRead;
             }
 
             return result;
@@ -421,11 +599,11 @@ namespace PurrNet.Packing
 
             // Process full 64-bit chunks
             for (int i = 0; i < fullChunks; i++)
-                WriteBits(other.ReadBits(64), 64);
+                WriteBitsWithoutChecks(other.ReadBits(64), 64);
 
             // Process excess bytes (remaining bytes before full 64-bit chunks)
             for (int i = 0; i < excess; i++)
-                WriteBits(other.ReadBits(8), 8);
+                WriteBitsWithoutChecks(other.ReadBits(8), 8);
         }
 
         public void WriteBytes(ReadOnlySpan<byte> bytes)
@@ -448,19 +626,19 @@ namespace PurrNet.Packing
                     longValue |= (ulong)bytes[index++] << (j * 8);
 
                 // Write the 64-bit chunk
-                WriteBits(longValue, 64);
+                WriteBitsWithoutChecks(longValue, 64);
             }
 
             // Process remaining excess bytes
             for (int i = 0; i < excess; i++)
             {
-                WriteBits(bytes[index++], 8);
+                WriteBitsWithoutChecks(bytes[index++], 8);
             }
         }
 
         public void SkipBits(int skip)
         {
-            positionInBits += skip;
+            _positionInBits += skip;
         }
 
         public void WriteString(Encoding utf8, string valueValue)
@@ -497,13 +675,17 @@ namespace PurrNet.Packing
 
         public void WriteAt(int positionInBits, bool data)
         {
-            WriteBitsAt(positionInBits, data ? 1UL : 0UL, 1);
+            WriteBitsAtWithoutChecks(positionInBits, data ? 1UL : 0UL, 1);
         }
 
         public void WriteBitsAt(int positionInBits, ulong data, byte bits)
         {
             EnsureBitsExist(positionInBits, bits);
+            WriteBitsAtWithoutChecks(positionInBits, data, bits);
+        }
 
+        void WriteBitsAtWithoutChecks(int positionInBits, ulong data, byte bits)
+        {
             if (bits > 64)
                 throw new ArgumentOutOfRangeException(nameof(bits), "Cannot write more than 64 bits at a time.");
 

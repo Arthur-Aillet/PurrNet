@@ -35,11 +35,12 @@ namespace PurrNet
     }
 
     [Serializable]
-    public class SyncArray<T> : NetworkModule, IList<T>, ISerializationCallbackReceiver
+    public class SyncArray<T> : NetworkModule, IList<T>, ISerializationCallbackReceiver, ITick
     {
         [SerializeField] private bool _ownerAuth;
         [SerializeField] private List<T> _serializedItems = new List<T>();
         [SerializeField] private int _length;
+        [SerializeField, Min(0)] private float _sendIntervalInSeconds;
         
         private T[] _array;
 
@@ -48,6 +49,12 @@ namespace PurrNet
         public event SyncArrayChanged<T> onChanged;
 
         public bool ownerAuth => _ownerAuth;
+        
+        public float sendIntervalInSeconds
+        {
+            get => _sendIntervalInSeconds;
+            set => _sendIntervalInSeconds = value;
+        }
         
         public int Length
         {
@@ -77,6 +84,10 @@ namespace PurrNet
 
         public int Count => _length;
         public bool IsReadOnly => false;
+        private List<SyncArrayChange<T>> _pendingChanges = new();
+        private float _lastSendTime;
+        private bool _isDirty;
+        private bool _wasLastDirty;
 
         public SyncArray(int length = 0, bool ownerAuth = false)
         {
@@ -170,6 +181,12 @@ namespace PurrNet
                 SendSetToTarget(player, i, _array[i]);
             }
         }
+        
+        private void QueueChange(SyncArrayChange<T> change)
+        {
+            _pendingChanges.Add(change);
+            _isDirty = true;
+        }
 
         [TargetRpc(Channel.ReliableOrdered)]
         private void SendInitialSizeToTarget(PlayerID player, int length)
@@ -183,7 +200,10 @@ namespace PurrNet
             if (index >= 0 && index < _length)
             {
                 _array[index] = value;
-                InvokeChange(new SyncArrayChange<T>(SyncArrayOperation.Set, value, index));
+                var change = new SyncArrayChange<T>(SyncArrayOperation.Set, value, index);
+                //QueueChange(change);
+                InvokeChange(change);
+
             }
         }
 
@@ -201,9 +221,13 @@ namespace PurrNet
                 {
                     Array.Resize(ref _array, length);
                     _length = length;
-                    
-                    InvokeChange(new SyncArrayChange<T>(SyncArrayOperation.Resized));
-                    InvokeChange(new SyncArrayChange<T>(SyncArrayOperation.Cleared));
+
+                    var resizeChange = new SyncArrayChange<T>(SyncArrayOperation.Resized);
+                    var clearChange = new SyncArrayChange<T>(SyncArrayOperation.Cleared);
+                    QueueChange(resizeChange);
+                    InvokeChange(resizeChange);
+                    QueueChange(clearChange);
+                    InvokeChange(clearChange);
                 }
             }
         }
@@ -225,8 +249,12 @@ namespace PurrNet
                     Array.Resize(ref _array, length);
                     _length = length;
                     
-                    InvokeChange(new SyncArrayChange<T>(SyncArrayOperation.Resized));
-                    InvokeChange(new SyncArrayChange<T>(SyncArrayOperation.Cleared));
+                    var resizeChange = new SyncArrayChange<T>(SyncArrayOperation.Resized);
+                    var clearChange = new SyncArrayChange<T>(SyncArrayOperation.Cleared);
+                    QueueChange(resizeChange);
+                    InvokeChange(resizeChange);
+                    //QueueChange(clearChange);
+                    InvokeChange(clearChange);
                 }
             }
         }
@@ -238,6 +266,7 @@ namespace PurrNet
             Array.Clear(_array, 0, _length);
             
             var change = new SyncArrayChange<T>(SyncArrayOperation.Cleared);
+            QueueChange(change);
             InvokeChange(change);
             
             if (isSpawned)
@@ -332,7 +361,9 @@ namespace PurrNet
             }
             
             var value = _array[index];
-            InvokeChange(new SyncArrayChange<T>(SyncArrayOperation.Set, value, index));
+            var change = new SyncArrayChange<T>(SyncArrayOperation.Set, value, index);
+            QueueChange(change);
+            InvokeChange(change);
             
             if (isServer)
                 SendSetDirtyToAll(index, value);
@@ -358,6 +389,52 @@ namespace PurrNet
         {
             onChanged?.Invoke(change);
         }
+        
+        public void OnTick(float delta)
+        {
+            if (!IsController(_ownerAuth))
+                return;
+
+            float timeSinceLastSend = Time.time - _lastSendTime;
+
+            if (timeSinceLastSend < _sendIntervalInSeconds)
+                return;
+
+            if (_isDirty)
+            {
+                foreach (var change in _pendingChanges)
+                {
+                    switch (change.operation)
+                    {
+                        case SyncArrayOperation.Set:
+                            if (isServer) SendSetToAll(change.index, change.value);
+                            else SendSetToServer(change.index, change.value);
+                            break;
+                        case SyncArrayOperation.Resized:
+                            if (isServer) SendResizeToAll(_length);
+                            else SendResizeToServer(_length);
+                            break;
+                        case SyncArrayOperation.Cleared:
+                            if (isServer) SendClearToAll();
+                            else SendClearToServer();
+                            break;
+                    }
+                }
+
+                _pendingChanges.Clear();
+                _lastSendTime = Time.time;
+                _wasLastDirty = true;
+                _isDirty = false;
+            }
+            else if (_wasLastDirty)
+            {
+                if(isServer)
+                    ForceSendReliable_Internal();
+                else
+                    ForceSendReliable();
+                _wasLastDirty = false;
+            }
+        }
 
         #region RPCs
 
@@ -376,7 +453,9 @@ namespace PurrNet
                 if (index >= 0 && index < _length)
                 {
                     _array[index] = value;
-                    InvokeChange(new SyncArrayChange<T>(SyncArrayOperation.Set, value, index));
+                    var change = new SyncArrayChange<T>(SyncArrayOperation.Set, value, index);
+                    QueueChange(change);
+                    InvokeChange(change);
                 }
             }
         }
@@ -389,7 +468,9 @@ namespace PurrNet
                 if (index >= 0 && index < _length)
                 {
                     _array[index] = value;
-                    InvokeChange(new SyncArrayChange<T>(SyncArrayOperation.Set, value, index));
+                    var change = new SyncArrayChange<T>(SyncArrayOperation.Set, value, index);
+                    QueueChange(change);
+                    InvokeChange(change);
                 }
             }
         }
@@ -407,7 +488,9 @@ namespace PurrNet
             if (!isServer || isHost)
             {
                 Array.Clear(_array, 0, _length);
-                InvokeChange(new SyncArrayChange<T>(SyncArrayOperation.Cleared));
+                var change = new SyncArrayChange<T>(SyncArrayOperation.Cleared);
+                QueueChange(change);
+                InvokeChange(change);
             }
         }
 
@@ -417,7 +500,9 @@ namespace PurrNet
             if (!isHost)
             {
                 Array.Clear(_array, 0, _length);
-                InvokeChange(new SyncArrayChange<T>(SyncArrayOperation.Cleared));
+                var change = new SyncArrayChange<T>(SyncArrayOperation.Cleared);
+                QueueChange(change);
+                InvokeChange(change);
             }
         }
 
@@ -437,7 +522,9 @@ namespace PurrNet
                 {
                     Array.Resize(ref _array, newLength);
                     _length = newLength;
-                    InvokeChange(new SyncArrayChange<T>(SyncArrayOperation.Resized));
+                    var change = new SyncArrayChange<T>(SyncArrayOperation.Resized);
+                    QueueChange(change);
+                    InvokeChange(change);
                 }
             }
         }
@@ -451,7 +538,9 @@ namespace PurrNet
                 {
                     Array.Resize(ref _array, newLength);
                     _length = newLength;
-                    InvokeChange(new SyncArrayChange<T>(SyncArrayOperation.Resized));
+                    var change = new SyncArrayChange<T>(SyncArrayOperation.Resized);
+                    QueueChange(change);
+                    InvokeChange(change);
                 }
             }
         }
@@ -471,7 +560,9 @@ namespace PurrNet
                 if (index >= 0 && index < _length)
                 {
                     _array[index] = value;
-                    InvokeChange(new SyncArrayChange<T>(SyncArrayOperation.Set, value, index));
+                    var change = new SyncArrayChange<T>(SyncArrayOperation.Set, value, index);
+                    QueueChange(change);
+                    InvokeChange(change);
                 }
             }
         }
@@ -484,9 +575,24 @@ namespace PurrNet
                 if (index >= 0 && index < _length)
                 {
                     _array[index] = value;
-                    InvokeChange(new SyncArrayChange<T>(SyncArrayOperation.Set, value, index));
+                    var change = new SyncArrayChange<T>(SyncArrayOperation.Set, value, index);
+                    QueueChange(change);
+                    InvokeChange(change);
                 }
             }
+        }
+        
+        [ServerRpc(Channel.ReliableOrdered)]
+        private void ForceSendReliable()
+        {
+            ForceSendReliable_Internal();
+        }
+
+        private void ForceSendReliable_Internal()
+        {
+            SendInitialSizeToAll(_length);
+            for (int i = 0; i < _length; i++)
+                SendSetToAll(i, _array[i]);
         }
 
         #endregion

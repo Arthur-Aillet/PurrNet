@@ -322,6 +322,25 @@ namespace PurrNet.Editor
             GUI.color = Color.white;
             GUI.enabled = true;
             GUILayout.EndHorizontal();
+
+#if PURRNET_CONNECTION_DEBUG
+            GUILayout.BeginHorizontal();
+
+            // draw buttons for all actions, independnt of state
+            if (GUILayout.Button("Start Server", GUILayout.Width(10), GUILayout.ExpandWidth(true)))
+                _networkManager.StartServer();
+
+            if (GUILayout.Button("Stop Server", GUILayout.Width(10), GUILayout.ExpandWidth(true)))
+                _networkManager.StopServer();
+
+            if (GUILayout.Button("Start Client", GUILayout.Width(10), GUILayout.ExpandWidth(true)))
+                _networkManager.StartClient();
+
+            if (GUILayout.Button("Stop Client", GUILayout.Width(10), GUILayout.ExpandWidth(true)))
+                _networkManager.StopClient();
+
+            GUILayout.EndHorizontal();
+#endif
         }
 
         private void RenderServerButton()
@@ -349,6 +368,8 @@ namespace PurrNet.Editor
                         _networkManager.StopServer();
                     break;
             }
+
+
         }
 
         private void RenderClientButton()

@@ -92,6 +92,8 @@ namespace PurrNet.Modules
 
         public PlayerID? localPlayerId { get; private set; }
 
+        public NetworkID? lastNid { get; private set; }
+
         /// <summary>
         /// First callback for whne a new player has joined
         /// </summary>
@@ -360,6 +362,7 @@ namespace PurrNet.Modules
         private void OnClientLoginResponse(Connection conn, ServerLoginResponse data, bool asServer)
         {
             localPlayerId = data.playerId;
+            lastNid = data.lastNidId;
             onLocalPlayerReceivedID?.Invoke(data.playerId);
             onNetworkIDReceived?.Invoke(data.lastNidId);
         }

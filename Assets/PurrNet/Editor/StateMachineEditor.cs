@@ -16,7 +16,7 @@ namespace PurrNet.StateMachine.InspectorEditor
             base.OnEnable();
             _stateMachine = target as StateMachine;
             _statesProperty = serializedObject.FindProperty("_states");
-            _ownerAuthProperty = serializedObject.FindProperty("ownerAuth");
+            _ownerAuthProperty = serializedObject.FindProperty("_ownerAuth");
 
         }
 
@@ -47,9 +47,12 @@ namespace PurrNet.StateMachine.InspectorEditor
                 return;
             }
 
-            DrawStateMachineInfo();
-            DrawStateControls();
-            DrawNetworkStatus();
+            if (Application.isPlaying && _stateMachine && _stateMachine.currentState.stateId >= 0 && _stateMachine.states.Count > _stateMachine.currentState.stateId)
+            {
+                DrawStateMachineInfo();
+                DrawStateControls();
+                DrawNetworkStatus();
+            }
 
             DrawIdentityInspector();
 
@@ -100,7 +103,7 @@ namespace PurrNet.StateMachine.InspectorEditor
 
         private void DrawStateControls()
         {
-            if (!Application.isPlaying || !_stateMachine.IsController(_stateMachine.OwnerAuth))
+            if (!Application.isPlaying || !_stateMachine.IsController(_stateMachine.ownerAuth))
                 return;
 
             EditorGUILayout.Space();

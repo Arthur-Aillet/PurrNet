@@ -63,19 +63,35 @@ namespace PurrNet.Packing
         }
 
         [UsedByIL]
-        public static void Write(this BitPacker packer, Vector3 value)
+        public static unsafe void Write(this BitPacker packer, Vector3 value)
         {
-            packer.Write(value.x);
-            packer.Write(value.y);
-            packer.Write(value.z);
+            var x = value.x;
+            var y = value.y;
+            var z = value.z;
+
+            uint xbits = *(uint*)&x;
+            uint ybits = *(uint*)&y;
+            uint zbits = *(uint*)&z;
+
+            ulong xyBits = ((ulong)xbits << 32) | ybits;
+
+            packer.EnsureBitsExist(64 + 32);
+            packer.WriteBitsWithoutChecks(xyBits, 64);
+            packer.WriteBitsWithoutChecks(zbits, 32);
         }
 
         [UsedByIL]
-        public static void Read(this BitPacker packer, ref Vector3 value)
+        public static unsafe void Read(this BitPacker packer, ref Vector3 value)
         {
-            packer.Read(ref value.x);
-            packer.Read(ref value.y);
-            packer.Read(ref value.z);
+            ulong xyBits = packer.ReadBits(64);
+            ulong zbits = packer.ReadBits(32);
+
+            uint xbits = (uint)(xyBits >> 32);
+            uint ybits = (uint)(xyBits & 0xFFFFFFFF);
+
+            value.x = *(float*)&xbits;
+            value.y = *(float*)&ybits;
+            value.z = *(float*)&zbits;
         }
 
         [UsedByIL]
@@ -106,11 +122,11 @@ namespace PurrNet.Packing
         [UsedByIL]
         public static void Read(this BitPacker packer, ref Vector2Int value)
         {
-            float x = default;
-            float y = default;
+            int x = default;
+            int y = default;
             packer.Read(ref x);
             packer.Read(ref y);
-            value = new Vector2Int((int)x, (int)y);
+            value = new Vector2Int(x, y);
         }
 
         [UsedByIL]
@@ -124,13 +140,13 @@ namespace PurrNet.Packing
         [UsedByIL]
         public static void Read(this BitPacker packer, ref Vector3Int value)
         {
-            float x = default;
-            float y = default;
-            float z = default;
+            int x = default;
+            int y = default;
+            int z = default;
             packer.Read(ref x);
             packer.Read(ref y);
             packer.Read(ref z);
-            value = new Vector3Int((int)x, (int)y, (int)z);
+            value = new Vector3Int(x, y, z);
         }
 
         [UsedByIL]

@@ -42,13 +42,17 @@ namespace PurrNet
     }
 
     [Serializable]
-    public class SyncDictionary<TKey, TValue> : NetworkModule, IDictionary<TKey, TValue>, ISerializationCallbackReceiver
+    public class SyncDictionary<TKey, TValue> : NetworkModule, IDictionary<TKey, TValue>, ISerializationCallbackReceiver, ITick
     {
         [SerializeField] private bool _ownerAuth;
 
         [SerializeField]
         private SerializableDictionary<TKey, TValue> _serializedDict = new SerializableDictionary<TKey, TValue>();
+        [SerializeField, Min(0)] private float _sendIntervalInSeconds;
+        [SerializeField, Tooltip("This will send the entire state when things change. It's reliable, but more data heavy")] //We should optimize this in the future
+        private bool _useForceSend;
 
+        
         private Dictionary<TKey, TValue> _dict = new Dictionary<TKey, TValue>();
 
         public delegate void SyncDictionaryChanged<Key, Value>(SyncDictionaryChange<Key, Value> change);
@@ -62,7 +66,12 @@ namespace PurrNet
         /// Whether it is the owner or the server that has the authority to modify the dictionary
         /// </summary>
         public bool ownerAuth => _ownerAuth;
-
+        
+        public float sendIntervalInSeconds
+        {
+            get => _sendIntervalInSeconds;
+            set => _sendIntervalInSeconds = value;
+        }
         /// <summary>
         /// The amount of entries in the dictionary
         /// </summary>
@@ -71,10 +80,21 @@ namespace PurrNet
         public bool IsReadOnly => false;
         public ICollection<TKey> Keys => _dict.Keys;
         public ICollection<TValue> Values => _dict.Values;
+        
+        private List<SyncDictionaryChange<TKey, TValue>> _pendingChanges = new();
+        private float _lastSendTime;
+        private bool _isDirty;
+        private bool _wasLastDirty;
 
-        public SyncDictionary(bool ownerAuth = false)
+        /// <summary>
+        /// Creates a new Sync Dictionary
+        /// </summary>
+        /// <param name="ownerAuth">Whether the dictionary is owner authed or server auth</param>
+        /// <param name="useForceSend">This will send the full state after state syncing. This will be more data heavy, but more consistent</param>
+        public SyncDictionary(bool ownerAuth = false, bool useForceSend = false)
         {
             _ownerAuth = ownerAuth;
+            _useForceSend = useForceSend;
 
 #if UNITY_EDITOR
             onChanged += UpdateSerializedDict;
@@ -93,15 +113,8 @@ namespace PurrNet
 
                 var operation = isNewKey ? SyncDictionaryOperation.Added : SyncDictionaryOperation.Set;
                 var change = new SyncDictionaryChange<TKey, TValue>(operation, key, value);
+                QueueChange(change);
                 InvokeChange(change);
-
-                if (isSpawned)
-                {
-                    if (isServer)
-                        SendSetToAll(key, value, isNewKey);
-                    else
-                        SendSetToServer(key, value, isNewKey);
-                }
             }
         }
 
@@ -157,12 +170,13 @@ namespace PurrNet
             {
                 _dict = initialState;
 
-                InvokeChange(new SyncDictionaryChange<TKey, TValue>(SyncDictionaryOperation.Cleared));
+                var initialChang = new SyncDictionaryChange<TKey, TValue>(SyncDictionaryOperation.Cleared);
+                InvokeChange(initialChang);
 
                 foreach (var kvp in _dict)
                 {
-                    InvokeChange(
-                        new SyncDictionaryChange<TKey, TValue>(SyncDictionaryOperation.Added, kvp.Key, kvp.Value));
+                    var change = new SyncDictionaryChange<TKey, TValue>(SyncDictionaryOperation.Added, kvp.Key, kvp.Value);
+                    InvokeChange(change);
                 }
             }
         }
@@ -176,12 +190,13 @@ namespace PurrNet
 
                 _dict = initialState;
 
-                InvokeChange(new SyncDictionaryChange<TKey, TValue>(SyncDictionaryOperation.Cleared));
+                var initialChange = new SyncDictionaryChange<TKey, TValue>(SyncDictionaryOperation.Cleared);
+                InvokeChange(initialChange);
 
                 foreach (var kvp in _dict)
                 {
-                    InvokeChange(
-                        new SyncDictionaryChange<TKey, TValue>(SyncDictionaryOperation.Added, kvp.Key, kvp.Value));
+                    var change = new SyncDictionaryChange<TKey, TValue>(SyncDictionaryOperation.Added, kvp.Key, kvp.Value);
+                    InvokeChange(change);
                 }
             }
         }
@@ -206,15 +221,8 @@ namespace PurrNet
 
             _dict.Add(key, value);
             var change = new SyncDictionaryChange<TKey, TValue>(SyncDictionaryOperation.Added, key, value);
+            QueueChange(change);
             InvokeChange(change);
-
-            if (isSpawned)
-            {
-                if (isServer)
-                    SendAddToAll(key, value);
-                else
-                    SendAddToServer(key, value);
-            }
         }
 
         public void Add(KeyValuePair<TKey, TValue> item)
@@ -234,15 +242,8 @@ namespace PurrNet
 
             _dict.Remove(key);
             var change = new SyncDictionaryChange<TKey, TValue>(SyncDictionaryOperation.Removed, key, value);
+            QueueChange(change);
             InvokeChange(change);
-
-            if (isSpawned)
-            {
-                if (isServer)
-                    SendRemoveToAll(key);
-                else
-                    SendRemoveToServer(key);
-            }
 
             return true;
         }
@@ -264,15 +265,8 @@ namespace PurrNet
 
             _dict.Clear();
             var change = new SyncDictionaryChange<TKey, TValue>(SyncDictionaryOperation.Cleared);
+            QueueChange(change);
             InvokeChange(change);
-
-            if (isSpawned)
-            {
-                if (isServer)
-                    SendClearToAll();
-                else
-                    SendClearToServer();
-            }
         }
 
         /// <summary>
@@ -313,6 +307,69 @@ namespace PurrNet
             onChanged?.Invoke(change);
         }
 
+        private void QueueChange(SyncDictionaryChange<TKey, TValue> change)
+        {
+            _pendingChanges.Add(change);
+            _isDirty = true;
+        }
+        public void OnTick(float delta)
+        {
+            if (!IsController(_ownerAuth))
+                return;
+
+            float timeSinceLastSend = Time.time - _lastSendTime;
+
+            if (timeSinceLastSend < _sendIntervalInSeconds)
+                return;
+
+            if (_isDirty)
+            {
+                foreach (var change in _pendingChanges)
+                {
+                    switch (change.operation)
+                    {
+                        case SyncDictionaryOperation.Added:
+                        case SyncDictionaryOperation.Set:
+                            if (isServer)
+                                SendSetToAll(change.key, change.value, change.operation == SyncDictionaryOperation.Added);
+                            else
+                                SendSetToServer(change.key, change.value, change.operation == SyncDictionaryOperation.Added);
+                            break;
+
+                        case SyncDictionaryOperation.Removed:
+                            if (isServer)
+                                SendRemoveToAll(change.key);
+                            else
+                                SendRemoveToServer(change.key);
+                            break;
+
+                        case SyncDictionaryOperation.Cleared:
+                            if (isServer)
+                                SendClearToAll();
+                            else
+                                SendClearToServer();
+                            break;
+                    }
+                }
+
+                _pendingChanges.Clear();
+                _lastSendTime = Time.time;
+                _wasLastDirty = true;
+                _isDirty = false;
+            }
+            else if (_wasLastDirty)
+            {
+                if (_useForceSend)
+                {
+                    if(isServer)
+                        SendInitialStateToAll(_dict);
+                    else
+                        ForceSendReliable();
+                }
+                _wasLastDirty = false;
+            }
+        }
+
         #region RPCs
 
         [ServerRpc(Channel.ReliableOrdered, requireOwnership: true)]
@@ -328,7 +385,8 @@ namespace PurrNet
             if (!isServer || isHost)
             {
                 _dict[key] = value;
-                InvokeChange(new SyncDictionaryChange<TKey, TValue>(SyncDictionaryOperation.Added, key, value));
+                var change = new SyncDictionaryChange<TKey, TValue>(SyncDictionaryOperation.Added, key, value);
+                InvokeChange(change);
             }
         }
 
@@ -338,7 +396,8 @@ namespace PurrNet
             if (!isHost)
             {
                 _dict[key] = value;
-                InvokeChange(new SyncDictionaryChange<TKey, TValue>(SyncDictionaryOperation.Added, key, value));
+                var change = new SyncDictionaryChange<TKey, TValue>(SyncDictionaryOperation.Added, key, value);
+                InvokeChange(change);
             }
         }
 
@@ -357,7 +416,8 @@ namespace PurrNet
                 if (_dict.TryGetValue(key, out TValue value))
                 {
                     _dict.Remove(key);
-                    InvokeChange(new SyncDictionaryChange<TKey, TValue>(SyncDictionaryOperation.Removed, key, value));
+                    var change = new SyncDictionaryChange<TKey, TValue>(SyncDictionaryOperation.Removed, key, value);
+                    InvokeChange(change);
                 }
             }
         }
@@ -369,7 +429,8 @@ namespace PurrNet
             {
                 if (_dict.Remove(key, out TValue value))
                 {
-                    InvokeChange(new SyncDictionaryChange<TKey, TValue>(SyncDictionaryOperation.Removed, key, value));
+                    var change = new SyncDictionaryChange<TKey, TValue>(SyncDictionaryOperation.Removed, key, value);
+                    InvokeChange(change);
                 }
             }
         }
@@ -387,7 +448,8 @@ namespace PurrNet
             if (!isServer || isHost)
             {
                 _dict.Clear();
-                InvokeChange(new SyncDictionaryChange<TKey, TValue>(SyncDictionaryOperation.Cleared));
+                var change = new SyncDictionaryChange<TKey, TValue>(SyncDictionaryOperation.Cleared);
+                InvokeChange(change);
             }
         }
 
@@ -397,7 +459,8 @@ namespace PurrNet
             if (!isHost)
             {
                 _dict.Clear();
-                InvokeChange(new SyncDictionaryChange<TKey, TValue>(SyncDictionaryOperation.Cleared));
+                var change = new SyncDictionaryChange<TKey, TValue>(SyncDictionaryOperation.Cleared);
+                InvokeChange(change);
             }
         }
 
@@ -415,7 +478,8 @@ namespace PurrNet
             {
                 _dict[key] = value;
                 var operation = isNewKey ? SyncDictionaryOperation.Added : SyncDictionaryOperation.Set;
-                InvokeChange(new SyncDictionaryChange<TKey, TValue>(operation, key, value));
+                var change = new SyncDictionaryChange<TKey, TValue>(operation, key, value);
+                InvokeChange(change);
             }
         }
 
@@ -426,7 +490,8 @@ namespace PurrNet
             {
                 _dict[key] = value;
                 var operation = isNewKey ? SyncDictionaryOperation.Added : SyncDictionaryOperation.Set;
-                InvokeChange(new SyncDictionaryChange<TKey, TValue>(operation, key, value));
+                var change = new SyncDictionaryChange<TKey, TValue>(operation, key, value);
+                InvokeChange(change);
             }
         }
 
@@ -446,7 +511,9 @@ namespace PurrNet
                 return;
             }
 
-            InvokeChange(new SyncDictionaryChange<TKey, TValue>(SyncDictionaryOperation.Set, key, value));
+            var change = new SyncDictionaryChange<TKey, TValue>(SyncDictionaryOperation.Set, key, value);
+            QueueChange(change);
+            InvokeChange(change);
 
             if (isServer)
                 SendSetDirtyToAll(key, value);
@@ -469,7 +536,8 @@ namespace PurrNet
                 if (_dict.ContainsKey(key))
                 {
                     _dict[key] = value;
-                    InvokeChange(new SyncDictionaryChange<TKey, TValue>(SyncDictionaryOperation.Set, key, value));
+                    var change = new SyncDictionaryChange<TKey, TValue>(SyncDictionaryOperation.Set, key, value);
+                    InvokeChange(change);
                 }
             }
         }
@@ -482,10 +550,19 @@ namespace PurrNet
                 if (_dict.ContainsKey(key))
                 {
                     _dict[key] = value;
-                    InvokeChange(new SyncDictionaryChange<TKey, TValue>(SyncDictionaryOperation.Set, key, value));
+                    var change = new SyncDictionaryChange<TKey, TValue>(SyncDictionaryOperation.Set, key, value);
+                    InvokeChange(change);
                 }
             }
         }
+        
+        [ServerRpc(Channel.ReliableOrdered)]
+        private void ForceSendReliable()
+        {
+            if(_useForceSend)
+                SendInitialStateToAll(_dict);
+        }
+
 
         #endregion
     }

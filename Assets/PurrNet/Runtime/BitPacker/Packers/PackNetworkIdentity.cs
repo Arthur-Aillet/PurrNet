@@ -85,6 +85,9 @@ namespace PurrNet
 
         static NetworkIdentity GetSpawnedParent(Transform trs)
         {
+            if (!trs)
+                return null;
+
             if (trs.TryGetComponent<NetworkIdentity>(out var identity) && identity.isSpawned)
                 return identity;
 

@@ -48,7 +48,6 @@ namespace PurrNet.Logging
             catch
             {
                 Debug.LogException(exception);
-                Debug.LogError("You fucked up, please report this to the devs");
             }
 #else
             Debug.LogException(exception);

@@ -334,9 +334,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 817fe5016bd0a2a49a95b6eb338bb132, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  _isSetup: 0
   _prefabId: -2147483648
-  _siblingIndex: -2147483648
-  _depthIndex: -2147483648
+  _componentIndex: -2147483648
   _shouldBePooled: 0
   _parent: {fileID: 0}
   _invertedPathToNearestParent: 
@@ -348,13 +348,11 @@ MonoBehaviour:
   _syncScale: 1
   _syncParent: 1
   _interpolateSettings: 7
-  _ownerAuth: 1
-  _sendIntervalInTicks: 0
+  _minBufferSize: 1
+  _maxBufferSize: 2
   _characterControllerPatch: 0
-  _tolerances:
-    positionTolerance: 0.1
-    rotationAngleTolerance: 1
-    scaleTolerance: 0.05
+  _ownerAuth: 1
+  _interpolationTiming: 0
 --- !u!54 &309240625
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -468,9 +466,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2481f4d27ce85044e9f1cab08cf2b606, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  _isSetup: 0
   _prefabId: -2147483648
-  _siblingIndex: -2147483648
-  _depthIndex: -2147483648
+  _componentIndex: -2147483648
   _shouldBePooled: 0
   _parent: {fileID: 0}
   _invertedPathToNearestParent: 
@@ -1307,9 +1305,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 817fe5016bd0a2a49a95b6eb338bb132, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  _isSetup: 0
   _prefabId: -2147483648
-  _siblingIndex: -2147483648
-  _depthIndex: -2147483648
+  _componentIndex: -2147483648
   _shouldBePooled: 0
   _parent: {fileID: 0}
   _invertedPathToNearestParent: 
@@ -1321,13 +1319,11 @@ MonoBehaviour:
   _syncScale: 1
   _syncParent: 1
   _interpolateSettings: 7
-  _ownerAuth: 1
-  _sendIntervalInTicks: 0
+  _minBufferSize: 1
+  _maxBufferSize: 2
   _characterControllerPatch: 0
-  _tolerances:
-    positionTolerance: 0.1
-    rotationAngleTolerance: 1
-    scaleTolerance: 0.05
+  _ownerAuth: 1
+  _interpolationTiming: 0
 --- !u!54 &820702090
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -1441,9 +1437,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2481f4d27ce85044e9f1cab08cf2b606, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  _isSetup: 0
   _prefabId: -2147483648
-  _siblingIndex: -2147483648
-  _depthIndex: -2147483648
+  _componentIndex: -2147483648
   _shouldBePooled: 0
   _parent: {fileID: 0}
   _invertedPathToNearestParent: 
@@ -2017,6 +2013,7 @@ GameObject:
   - component: {fileID: 1216416897}
   - component: {fileID: 1216416896}
   - component: {fileID: 1216416899}
+  - component: {fileID: 1216416900}
   m_Layer: 0
   m_Name: Network
   m_TagString: Untagged
@@ -2039,6 +2036,8 @@ MonoBehaviour:
   _serverPort: 5000
   _maxConnections: 100
   _address: 127.0.0.1
+  _timeoutInSeconds: 5
+  _pollEventsInUpdate: 0
 --- !u!114 &1216416897
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2052,16 +2051,17 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _stopPlayingOnDisconnect: 0
-  _startServerFlags: 10
+  _startServerFlags: 11
   _startClientFlags: 7
   _cookieScope: 1
   _dontDestroyOnLoad: 0
-  _cheetahData: 0
-  _transport: {fileID: 1216416896}
+  _transport: {fileID: 1216416900}
   _networkPrefabs: {fileID: 11400000, guid: 15f0c777cc2391249a3152c5dfd1d782, type: 2}
   _networkRules: {fileID: 11400000, guid: 524017b159394024ebde3609a05acc55, type: 2}
   _visibilityRules: {fileID: 0}
+  _authenticator: {fileID: 0}
   _tickRate: 20
+  _patchLingeringProcessBug: 0
 --- !u!4 &1216416898
 Transform:
   m_ObjectHideFlags: 0
@@ -2091,11 +2091,29 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   playerPrefab: {fileID: 0}
   _playerPrefab: {fileID: 2021845121686469242, guid: db65450515269e4418d7ffcc25973f7c, type: 3}
+  _ignoreNetworkRules: 0
   spawnPoints:
   - {fileID: 296507700}
   - {fileID: 667181804}
   - {fileID: 171128654}
   - {fileID: 148014638}
+--- !u!114 &1216416900
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1216416895}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 332e746c3c3253246aacad4d5559f1fb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _masterServer: https://purrbalancer.riten.dev:8080/
+  _roomName: 12ca25d6f4724b7c87b4d54f37d6ff53
+  _region: eu-central
+  _host: eu1.purrlay.riten.dev
+  _pollEventsInUpdate: 0
 --- !u!1001 &1312733901
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -2330,9 +2348,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 817fe5016bd0a2a49a95b6eb338bb132, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  _isSetup: 0
   _prefabId: -2147483648
-  _siblingIndex: -2147483648
-  _depthIndex: -2147483648
+  _componentIndex: -2147483648
   _shouldBePooled: 0
   _parent: {fileID: 0}
   _invertedPathToNearestParent: 
@@ -2344,13 +2362,11 @@ MonoBehaviour:
   _syncScale: 1
   _syncParent: 1
   _interpolateSettings: 7
-  _ownerAuth: 1
-  _sendIntervalInTicks: 0
+  _minBufferSize: 1
+  _maxBufferSize: 2
   _characterControllerPatch: 0
-  _tolerances:
-    positionTolerance: 0.1
-    rotationAngleTolerance: 1
-    scaleTolerance: 0.05
+  _ownerAuth: 1
+  _interpolationTiming: 0
 --- !u!54 &1394430712
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -2464,9 +2480,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2481f4d27ce85044e9f1cab08cf2b606, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  _isSetup: 0
   _prefabId: -2147483648
-  _siblingIndex: -2147483648
-  _depthIndex: -2147483648
+  _componentIndex: -2147483648
   _shouldBePooled: 0
   _parent: {fileID: 0}
   _invertedPathToNearestParent: 
@@ -3099,9 +3115,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2481f4d27ce85044e9f1cab08cf2b606, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  _isSetup: 0
   _prefabId: -2147483648
-  _siblingIndex: -2147483648
-  _depthIndex: -2147483648
+  _componentIndex: -2147483648
   _shouldBePooled: 0
   _parent: {fileID: 0}
   _invertedPathToNearestParent: 
@@ -3138,9 +3154,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 817fe5016bd0a2a49a95b6eb338bb132, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  _isSetup: 0
   _prefabId: -2147483648
-  _siblingIndex: -2147483648
-  _depthIndex: -2147483648
+  _componentIndex: -2147483648
   _shouldBePooled: 0
   _parent: {fileID: 0}
   _invertedPathToNearestParent: 
@@ -3152,13 +3168,11 @@ MonoBehaviour:
   _syncScale: 1
   _syncParent: 1
   _interpolateSettings: 7
-  _ownerAuth: 1
-  _sendIntervalInTicks: 0
+  _minBufferSize: 1
+  _maxBufferSize: 2
   _characterControllerPatch: 0
-  _tolerances:
-    positionTolerance: 0.1
-    rotationAngleTolerance: 1
-    scaleTolerance: 0.05
+  _ownerAuth: 1
+  _interpolationTiming: 0
 --- !u!1001 &1997076166
 PrefabInstance:
   m_ObjectHideFlags: 0

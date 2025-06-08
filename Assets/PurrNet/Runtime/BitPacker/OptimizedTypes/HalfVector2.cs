@@ -2,7 +2,7 @@
 
 namespace PurrNet.Packing
 {
-    public struct HalfVector2
+    public struct HalfVector2 : IPackedAuto
     {
         public Half x;
         public Half y;

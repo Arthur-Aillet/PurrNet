@@ -64,6 +64,8 @@ namespace PurrNet
         public bool removePlayerFromSceneOnDisconnect;
         [Tooltip("On disconnect, unload all scenes that were loaded during the session and reload the starting scene")]
         public bool cleanupScenesOnDisconnect;
+
+        public bool alwaysIncludeDontDestroyOnLoadScene;
     }
 
     [Serializable]
@@ -87,7 +89,7 @@ namespace PurrNet
     [CreateAssetMenu(fileName = "NetworkRules", menuName = "PurrNet/Network Rules", order = -201)]
     public class NetworkRules : ScriptableObject
     {
-        [SerializeField] private SpawnRules _defaultSpawnRules = new SpawnRules()
+        [SerializeField] private SpawnRules _defaultSpawnRules = new SpawnRules
         {
             despawnAuth = ActionAuth.Server | ActionAuth.Owner,
             spawnAuth = ConnectionAuth.Server,
@@ -97,42 +99,43 @@ namespace PurrNet
             cleanupSpawnedObjects = true
         };
 
-        [SerializeField] private RpcRules _defaultRpcRules = new RpcRules()
+        [SerializeField] private RpcRules _defaultRpcRules = new RpcRules
         {
             ignoreRequireServerAttribute = false,
             ignoreRequireOwnerAttribute = false
         };
 
         [PurrReadOnly, UsedImplicitly] [SerializeField]
-        private VisibilityRules _defaultVisibilityRules = new VisibilityRules()
+        private VisibilityRules _defaultVisibilityRules = new VisibilityRules
         {
             visibilityMode = VisibilityMode.SpawnDespawn
         };
 
-        [SerializeField] private OwnershipRules _defaultOwnershipRules = new OwnershipRules()
+        [SerializeField] private OwnershipRules _defaultOwnershipRules = new OwnershipRules
         {
             assignAuth = ConnectionAuth.Server,
             transferAuth = ActionAuth.Owner | ActionAuth.Server,
             overrideWhenPropagating = true
         };
 
-        [SerializeField] private NetworkSceneRules _defaultSceneRules = new NetworkSceneRules()
+        [SerializeField] private NetworkSceneRules _defaultSceneRules = new NetworkSceneRules
         {
             removePlayerFromSceneOnDisconnect = false,
-            cleanupScenesOnDisconnect = true
+            cleanupScenesOnDisconnect = true,
+            alwaysIncludeDontDestroyOnLoadScene = false
         };
 
-        [SerializeField] private NetworkIdentityRules _defaultIdentityRules = new NetworkIdentityRules()
+        [SerializeField] private NetworkIdentityRules _defaultIdentityRules = new NetworkIdentityRules
         {
             receiveRpcsWhenDisabled = true
         };
 
-        [SerializeField] private NetworkTransformRules _defaultTransformRules = new NetworkTransformRules()
+        [SerializeField] private NetworkTransformRules _defaultTransformRules = new NetworkTransformRules
         {
             changeParentAuth = ActionAuth.Server | ActionAuth.Owner
         };
 
-        [SerializeField] private MiscRules _defaultMiscRules = new MiscRules()
+        [SerializeField] private MiscRules _defaultMiscRules = new MiscRules
         {
             syncedTickUpdateInterval = 1
         };
@@ -243,6 +246,11 @@ namespace PurrNet
         public bool ShouldCleanupScenesOnDisconnect()
         {
             return _defaultSceneRules.cleanupScenesOnDisconnect;
+        }
+
+        public bool ShouldAlwaysIncludeDontDestroyOnLoadScene()
+        {
+            return _defaultSceneRules.alwaysIncludeDontDestroyOnLoadScene;
         }
     }
 }

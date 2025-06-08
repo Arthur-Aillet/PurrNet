@@ -84,6 +84,25 @@ namespace PurrNet.Editor
             EditorGUILayout.LabelField("Connected");
             GUILayout.EndHorizontal();
 
+#if PURRNET_CONNECTION_DEBUG
+            GUILayout.BeginHorizontal();
+
+            // draw buttons for all actions, independnt of state
+            if (GUILayout.Button("Start Server", GUILayout.Width(10), GUILayout.ExpandWidth(true)))
+                generic.StartServer();
+
+            if (GUILayout.Button("Stop Server", GUILayout.Width(10), GUILayout.ExpandWidth(true)))
+                generic.StopServer();
+
+            if (GUILayout.Button("Start Client", GUILayout.Width(10), GUILayout.ExpandWidth(true)))
+                generic.StartClient();
+
+            if (GUILayout.Button("Stop Client", GUILayout.Width(10), GUILayout.ExpandWidth(true)))
+                generic.StopClient();
+
+            GUILayout.EndHorizontal();
+#endif
+
             GUILayout.Space(10);
         }
     }

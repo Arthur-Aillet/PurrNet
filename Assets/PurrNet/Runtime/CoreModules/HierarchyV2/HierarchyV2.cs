@@ -145,8 +145,12 @@ namespace PurrNet.Modules
             _scenePlayers.onPlayerUnloadedScene += OnPlayerUnloadedScene;
             _playersManager.onNetworkIDReceived += OnNetworkIDReceived;
 
+            if (_playersManager.lastNid.HasValue)
+                OnNetworkIDReceived(_playersManager.lastNid.Value);
+
             if (_playersManager.localPlayerId.HasValue)
                 OnPlayerReceivedID(_playersManager.localPlayerId.Value);
+
             else _playersManager.onLocalPlayerReceivedID += OnPlayerReceivedID;
 
             _playersManager.Subscribe<SpawnPacketBatch>(OnSpawnPacketBatch);
