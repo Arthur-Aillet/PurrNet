@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
+using Cysharp.Threading.Tasks;
 using Epic.OnlineServices;
 using Epic.OnlineServices.P2P;
+using PurrNet.Logging;
 using PurrNet.Transports;
 using UnityEngine;
+using Channel = PurrNet.Transports.Channel;
 
 namespace PurrNet.EOS
 {
@@ -37,24 +40,53 @@ namespace PurrNet.EOS
         [ContextMenu("Force init")]
         private void ForceInit()
         {
-            EOSWrapper.Init();
+            EOSWrapper.Init(NetworkManager.main);
         }
         
-        protected override void StartClientInternal()
+        protected override async void StartClientInternal()
         {
-            EOSWrapper.Init();
-            Connect(_address, _serverPort);
+            try
+            {
+                if (!TryGetNetworkManager(NetworkManager.main, out var manager))
+                {
+                    PurrLogger.LogError($"EOS Transport failed to get the NetworkManager");
+                    return;
+                }
+                
+                EOSWrapper.Init(manager);
+                await WaitForEOS();
+                Connect(_address, _serverPort);
+            }
+            catch (Exception e)
+            {
+                PurrLogger.LogException(e);
+            }
         }
 
-        protected override void StartServerInternal()
+        protected override async void StartServerInternal()
         {
-            EOSWrapper.Init();
-            _listenerState = ConnectionState.Connected;
+            try
+            {
+                if (!TryGetNetworkManager(NetworkManager.main, out var manager))
+                {
+                    PurrLogger.LogError($"EOS Transport failed to get the NetworkManager");
+                    return;
+                }
+                
+                EOSWrapper.Init(manager);
+                await WaitForEOS();
+                _listenerState = ConnectionState.Connected;
+            }
+            catch (Exception e)
+            {
+                PurrLogger.LogException(e);
+            }
         }
-
-        private void Update()
+        
+        private async UniTask WaitForEOS()
         {
-            EOSWrapper.Tick();
+            while (!EOSWrapper.IsReady)
+                await UniTask.Yield();
         }
 
         public void Connect(string ip, ushort port)
@@ -73,7 +105,9 @@ namespace PurrNet.EOS
             EOSWrapper.Platform.GetP2PInterface().AcceptConnection(ref acceptOptions);
             _clientState = ConnectionState.Connected;
             onConnectionState?.Invoke(_clientState, false);
-            onConnected?.Invoke(new Connection(peer.GetHashCode()), false);
+            var connection = new Connection(peer.GetHashCode());
+            onConnected?.Invoke(connection, false);
+            SendPacket(peer, new ByteData(new byte[1] { 0 }));
         }
 
         public void Listen(ushort port)
@@ -110,7 +144,9 @@ namespace PurrNet.EOS
 
         private void ReceiveMessagesInternal(bool asServer)
         {
-            EOSWrapper.Tick();
+            if (!EOSWrapper.IsReady)
+                return;
+            
             var p2p = EOSWrapper.Platform.GetP2PInterface();
 
             var options = new ReceivePacketOptions
@@ -123,12 +159,10 @@ namespace PurrNet.EOS
             var buffer = new byte[1024 * 8];
             while (true)
             {
-                var peer = ProductUserId.FromString("");
+                ProductUserId peer = null;
                 var socket = new SocketId { SocketName = _socketName };
-                byte channel;
-                uint length;
 
-                var result = p2p.ReceivePacket(ref options, ref peer, ref socket, out channel, new ArraySegment<byte>(buffer), out length);
+                var result = p2p.ReceivePacket(ref options, ref peer, ref socket, out var channel, new ArraySegment<byte>(buffer), out var length);
                 if (result != Result.Success)
                     break;
 
@@ -157,6 +191,8 @@ namespace PurrNet.EOS
 
         private void SendPacket(ProductUserId peer, ByteData data)
         {
+            if (!EOSWrapper.IsReady)
+                return;
             var sendOptions = new SendPacketOptions
             {
                 LocalUserId = EOSWrapper.LocalUserId,
@@ -172,10 +208,16 @@ namespace PurrNet.EOS
         }
 
         public void RaiseDataReceived(Connection conn, ByteData data, bool asServer)
-            => onDataReceived?.Invoke(conn, data, asServer);
+        {
+            Debug.Log($"Data received");
+            onDataReceived?.Invoke(conn, data, asServer);
+        }
 
         public void RaiseDataSent(Connection conn, ByteData data, bool asServer)
-            => onDataSent?.Invoke(conn, data, asServer);
+        {
+            Debug.Log($"Data sent");
+            onDataSent?.Invoke(conn, data, asServer);
+        }
 
         public bool shouldServerSendKeepAlive => false;
         public bool shouldClientSendKeepAlive => false;

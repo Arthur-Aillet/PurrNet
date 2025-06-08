@@ -11,13 +11,15 @@ namespace PurrNet.EOS
     {
         public static ProductUserId LocalUserId;
         public static PlatformInterface Platform;
+        public static bool IsReady => _initialized && LocalUserId != null;
         private static bool _initializing;
         private static bool _initialized;
 
-        public static void Init()
+        public static void Init(NetworkManager networkManager)
         {
             if (_initialized || _initializing) return;
             _initializing = true;
+            networkManager.onTick += Tick;
 
             var options = new Options
             {
@@ -111,6 +113,9 @@ namespace PurrNet.EOS
             }
         }
 
-        public static void Tick() { Platform?.Tick(); }
+        public static void Tick(bool asServer)
+        {
+            Platform?.Tick();
+        }
     }
 }

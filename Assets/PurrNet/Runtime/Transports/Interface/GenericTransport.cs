@@ -19,7 +19,7 @@ namespace PurrNet.Transports
         /// </summary>
         public abstract ITransport transport { get; }
 
-        bool TryGetNetworkManager(NetworkManager manager, out NetworkManager networkManager)
+        protected bool TryGetNetworkManager(NetworkManager manager, out NetworkManager networkManager)
         {
             if (manager)
             {
