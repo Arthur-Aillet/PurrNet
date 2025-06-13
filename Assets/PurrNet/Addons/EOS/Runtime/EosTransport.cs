@@ -106,6 +106,9 @@ namespace PurrNet.EOS
             _clientState = ConnectionState.Connected;
             onConnectionState?.Invoke(_clientState, false);
             var connection = new Connection(peer.GetHashCode());
+            
+            if (!_connections.Contains(connection))
+                _connections.Add(connection);
             onConnected?.Invoke(connection, false);
             SendPacket(peer, new ByteData(new byte[1] { 0 }));
         }
@@ -173,6 +176,7 @@ namespace PurrNet.EOS
                 if (!_connections.Contains(conn))
                     _connections.Add(conn);
 
+                Debug.Log($"Data received");
                 onDataReceived?.Invoke(conn, new ByteData(data, 0, data.Length), asServer);
             }
         }
