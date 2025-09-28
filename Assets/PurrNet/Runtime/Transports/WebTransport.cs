@@ -37,6 +37,8 @@ namespace PurrNet.Transports
         [Header("SSL Settings")] [SerializeField]
         private bool _enableSSL;
 
+        public bool supportsUnreliable => false;
+
         [SerializeField] private string _certPath;
         [SerializeField] private string _certPassword;
         [SerializeField] private SslProtocols _sslProtocols;

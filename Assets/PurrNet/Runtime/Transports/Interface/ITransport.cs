@@ -152,6 +152,8 @@ namespace PurrNet.Transports
 
         bool shouldClientSendKeepAlive => false;
 
+        bool supportsUnreliable => true;
+
         void SendServerKeepAlive()
         {
         }

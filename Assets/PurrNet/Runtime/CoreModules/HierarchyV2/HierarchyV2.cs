@@ -33,6 +33,8 @@ namespace PurrNet.Modules
         private readonly List<NetworkIdentity> _spawnedIdentities = new();
         private readonly Dictionary<NetworkID, NetworkIdentity> _spawnedIdentitiesMap = new();
 
+        public IReadOnlyList<NetworkIdentity> identities => _spawnedIdentities;
+
         private ulong _nextId;
 
         private bool _areSceneObjectsReady;

@@ -86,6 +86,8 @@ namespace PurrNet.Transports
 
         public bool shouldClientSendKeepAlive => true;
 
+        public bool supportsUnreliable => Application.platform != RuntimePlatform.WebGLPlayer;
+
         public ConnectionState listenerState
         {
             get => _listenerState;

@@ -166,6 +166,12 @@ namespace PurrNet
         public ITransport rawTransport => _transport ? _transport.transport : null;
 
         /// <summary>
+        /// This is hardcoded to 1300 right now.
+        /// But a proper implementation will be added later.
+        /// </summary>
+        public int unreliableChannelMTU => 1300;
+
+        /// <summary>
         /// The transport of the network manager.
         /// This is the main transport used when starting the server or client.
         /// </summary>
@@ -1078,6 +1084,7 @@ namespace PurrNet
             var rpcModule = new RPCModule(this, playersManager, hierarchyV2, ownershipModule, scenesModule);
             var networkTransform = new NetworkTransformFactory(scenesModule, scenePlayers, playersBroadcast, this, hierarchyV2);
             var colliderRollback = new ColliderRollbackFactory(tickManager, scenesModule);
+            var serializeFactory = new IdentityStreamFactory(this, scenesModule, hierarchyV2, newDeltaModule);
 
             if (asServer)
             {
@@ -1093,6 +1100,7 @@ namespace PurrNet
             modules.AddModule(ownershipModule);
             modules.AddModule(rpcModule);
             modules.AddModule(new RpcRequestResponseModule(playersManager));
+            modules.AddModule(serializeFactory);
             modules.AddModule(colliderRollback);
 
             RenewSubscriptions(asServer);
