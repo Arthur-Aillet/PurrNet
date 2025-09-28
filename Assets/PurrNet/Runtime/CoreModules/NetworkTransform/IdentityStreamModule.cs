@@ -15,17 +15,19 @@ namespace PurrNet.Modules
         readonly NetworkManager _manager;
         readonly HierarchyV2 _hierarchy;
         readonly DeltaModule _deltaModule;
+        readonly ScenePlayersModule _scenePlayers;
         readonly SceneID _scene;
         private bool _asServer;
 
         private readonly List<StreamEntry> _identities = new();
 
-        public IdentityStreamModule(NetworkManager manager, HierarchyV2 hierarchy, DeltaModule deltaModule, SceneID scene)
+        public IdentityStreamModule(NetworkManager manager, HierarchyV2 hierarchy, DeltaModule deltaModule, ScenePlayersModule scenePlayers, SceneID scene)
         {
             _manager = manager;
             _hierarchy = hierarchy;
             _scene = scene;
             _deltaModule = deltaModule;
+            _scenePlayers = scenePlayers;
         }
 
         public void Enable(bool asServer)
@@ -90,11 +92,19 @@ namespace PurrNet.Modules
 
             if (!_asServer)
             {
+                if (_manager.isServer)
+                    return;
                 WriteForPlayer(default, count, mtu);
             }
-            else
+            else if (_scenePlayers.TryGetPlayersInScene(_scene, out var players))
             {
-
+                var localPlayer = _manager.localPlayer;
+                for (var i = 0; i < players.Count; i++)
+                {
+                    if (localPlayer == players[i])
+                        continue;
+                    WriteForPlayer(players[i], count, mtu);
+                }
             }
         }
 
@@ -107,6 +117,9 @@ namespace PurrNet.Modules
             {
                 var identity = _identities[i];
                 var before = packer.positionInBits;
+
+                if (player != default && !identity.identity.IsObserver(player))
+                    continue;
 
                 stream.SetContext(player, identity.id, _scene);
                 identity.stream.StreamWrite(ref stream);

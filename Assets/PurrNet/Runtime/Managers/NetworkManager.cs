@@ -1084,7 +1084,7 @@ namespace PurrNet
             var rpcModule = new RPCModule(this, playersManager, hierarchyV2, ownershipModule, scenesModule);
             var networkTransform = new NetworkTransformFactory(scenesModule, scenePlayers, playersBroadcast, this, hierarchyV2);
             var colliderRollback = new ColliderRollbackFactory(tickManager, scenesModule);
-            var serializeFactory = new IdentityStreamFactory(this, scenesModule, hierarchyV2, newDeltaModule);
+            var serializeFactory = new IdentityStreamFactory(this, scenesModule, scenePlayers, hierarchyV2, newDeltaModule);
 
             if (asServer)
             {
